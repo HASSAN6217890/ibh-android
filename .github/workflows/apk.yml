@@ -3,7 +3,7 @@ name: apk
 
 on:
   push:
-    branches: [apk-build]
+    branches: [main, apk-build]
   workflow_dispatch:
 
 permissions:
