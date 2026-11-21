@@ -25,7 +25,16 @@ jobs:
 
       - uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-37 build-tools;36.0.0"
+          packages: "platform-tools build-tools;36.0.0"
+
+      - name: Install API 37 platform (official sdkmanager)
+        run: |
+          SM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; [ -x "$SM" ] || SM=$(ls -d $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | tail -1)
+          "$SM" --list 2>/dev/null | grep -oE "platforms;android-3[6-9][^ |]*" | sort -u | tee /tmp/plats.txt
+          PKG=$(grep -E "^platforms;android-37(\.0)?$" /tmp/plats.txt | head -1)
+          [ -n "$PKG" ] || { echo "no API 37 platform"; exit 1; }
+          yes | "$SM" "$PKG" >/dev/null
+          ls "$ANDROID_HOME/platforms"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
