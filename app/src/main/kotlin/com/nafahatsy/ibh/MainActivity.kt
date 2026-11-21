@@ -95,7 +95,7 @@ class MainActivity : Activity() {
         setupWeb()
 
         val saved = savedInstanceState?.getString(KEY_URL)
-        target = if (Cfg.isOurs(saved)) saved!! else Cfg.HOME
+        target = widgetTarget(intent) ?: if (Cfg.isOurs(saved)) saved!! else Cfg.HOME
         boot()
         checkWebViewVersion()
         registerBack()
@@ -105,6 +105,17 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         if (ACTION_BELL == intent?.action) openBell()
+        val w = widgetTarget(intent) ?: return
+        // ضغطة في أداة الإدارة والتطبيق مفتوح: تغيّر العنوان داخل المنصة (hashchange)، أو تُعاد المحاولة إن كانت صفحة الخطأ ظاهرة
+        target = w
+        if (mainLoaded && !errorShown && originOk) web.loadUrl(w) else retry()
+    }
+
+    /** مسار من أداة الإدارة (#day، #tasks…) بعد التحقق من القائمة المسموحة؛ وإلا null. بلا مسار: الصفحة الرئيسية */
+    private fun widgetTarget(i: Intent?): String? {
+        if (i == null || ACTION_OPEN != i.action) return null
+        val r = i.getStringExtra(EXTRA_ROUTE)
+        return if (Cfg.routeOk(r)) Cfg.ORIGIN + "/" + r else null
     }
 
     // ---------------------------------------------------------------- الواجهة
@@ -607,6 +618,8 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() { super.onPause(); web.onPause() }
+    // بعد العمل في المنصة (تثبيت حصة، إغلاق مهمة): تُحدَّث أداة الإدارة إن كانت مضافة
+    override fun onStop() { super.onStop(); try { WidgetData.poke(this) } catch (e: Exception) {} }
     override fun onResume() { super.onResume(); web.onResume() }
 
     /**
@@ -641,6 +654,9 @@ class MainActivity : Activity() {
 
     companion object {
         const val ACTION_BELL = "com.nafahatsy.ibh.BELL"
+        /** فتح من أداة الإدارة؛ المسار في EXTRA_ROUTE (يُتحقق منه بـ Cfg.routeOk) */
+        const val ACTION_OPEN = "com.nafahatsy.ibh.OPEN"
+        const val EXTRA_ROUTE = "route"
         private const val SECRET_SLOT = "__IBH_SECRET__"
         private const val KEY_URL = "url"
         private const val REQ_FILE = 11

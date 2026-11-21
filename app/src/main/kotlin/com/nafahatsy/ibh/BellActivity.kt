@@ -76,7 +76,7 @@ class BellActivity : Activity() {
         build()
         loadCache()
         refreshTokenUi()
-        if (token() != null && prefs.getBoolean("on", false)) start() else render()
+        if (token() != null && prefs.getBoolean("on", false)) start(false) else render()
         if (token() != null) fetch()
         // إيماءة الرجوع على أندرويد 13+ (الرجوع التنبؤي لا يستدعي onBackPressed): نفس القاعدة، لا خروج والجرس يعمل
         if (Build.VERSION.SDK_INT >= 33) {
@@ -138,7 +138,7 @@ class BellActivity : Activity() {
         nextT = tv(16f, Cfg.ORANGE, true); add(col, nextT, top = 6)
 
         toggle = btn(getString(R.string.bell_start), true)
-        toggle.setOnClickListener { if (on) stop() else start() }
+        toggle.setOnClickListener { if (on) stop() else start(true) }
         add(col, toggle, Cfg.dp(this, 52), 16)
         val test = btn(getString(R.string.bell_test), false)
         test.setOnClickListener { BellTone.play(2); checkVolume() }
@@ -232,10 +232,13 @@ class BellActivity : Activity() {
 
     // ---------------------------------------------------------------- التشغيل
 
-    private fun start() {
+    /** byUser: بزر «شغّل» (تُحفظ لحظة التشغيل لتقارير «فات»)، لا عند إعادة فتح الشاشة والجرس يعمل أصلاً */
+    private fun start(byUser: Boolean) {
         if (token() == null) return
         on = true
         prefs.edit().putBoolean("on", true).apply()
+        val t0 = now()
+        BellPlan.markOnFrom(this, t0.first, t0.second, byUser)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         showOverLock(true)
         acquireCpu()
@@ -298,20 +301,27 @@ class BellActivity : Activity() {
         val n = now()
         if (n.first != lastDay) { lastDay = n.first; lastMin = -1.0; fetch() }
         else if (System.currentTimeMillis() - fetchedAt > 5 * 60_000L) fetch()
-        val due = ArrayList<String>()
+        val due = ArrayList<Pair<Int, String>>()
         for (r in BellPlan.rings(today(n.first))) {
             if (r.first <= lastMin || r.first > n.second) continue
             val k = BellPlan.key(n.first, r.first)
-            if (BellPlan.wasRung(this, k)) { addLog(r.second); continue } // رنّ بالمنبّه الدقيق
+            if (BellPlan.wasRung(this, k)) { addLog(r.second); continue } // رنّ بالمنبّه الدقيق (وهو أبلغ عنه)
             BellPlan.markRung(this, k)
-            if (n.second - r.first <= 2.0) due.add(r.second) else addLog(r.second + " · " + getString(R.string.bell_missed))
+            if (n.second - r.first <= 2.0) due.add(r)
+            else {
+                addLog(r.second + " · " + getString(R.string.bell_missed))
+                if (BellPlan.afterOn(this, n.first, r.first)) BellReport.queue(this, n.first, BellPlan.hm(r.first), false)
+            }
         }
         lastMin = n.second
+        val day = n.first
         for (i in due.indices) {
-            val label = due[i]
-            ui.postDelayed({ BellTone.play(2); addLog(label) }, i * 2500L)
+            val r = due[i]
+            ui.postDelayed({ BellTone.play(2); addLog(r.second); BellReport.queue(this, day, BellPlan.hm(r.first), true) }, i * 2500L)
         }
         if (due.isNotEmpty()) BellPlan.schedule(this)
+        // تقارير لم تُرسل بعد: يُفحص هنا كثيراً، ولا محاولة إلا إن حلّ موعدها (BellReport.flush)
+        BellReport.flush(this)
         render()
     }
 

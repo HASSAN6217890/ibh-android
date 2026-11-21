@@ -90,6 +90,24 @@ object BellPlan {
         prefs(c).edit().putStringSet("rung", keep).apply()
     }
 
+    // ---- بدء التشغيل: لا يُبلَّغ عن «فات» لموعد قبل أن يُشغَّل الجرس (الويب يعرضه «قبل تشغيل الجرس»)
+
+    /** يحفظ لحظة تشغيل الجرس بزر «شغّل» (تاريخ|دقيقة بتوقيت الخادم). force=false: فقط إن لم تكن محفوظة (ترقية من 1.0.2) */
+    fun markOnFrom(c: Context, date: String, minute: Double, force: Boolean) {
+        if (!force && prefs(c).contains("on_from")) return
+        prefs(c).edit().putString("on_from", date + "|" + minute.toInt()).apply()
+    }
+
+    /** هل الموعد بعد تشغيل الجرس، فيُعدّ فواته «لم يرنّ» يُبلَّغ عنه؟ */
+    fun afterOn(c: Context, date: String, m: Int): Boolean {
+        val s = prefs(c).getString("on_from", null) ?: return false
+        val p = UiKit.splitOn(s, '|')
+        if (p.size != 2) return false
+        val m0 = p[1].toIntOrNull() ?: return false
+        val cmp = date.compareTo(p[0])
+        return cmp > 0 || (cmp == 0 && m >= m0)
+    }
+
     // ---- المنبّه الدقيق
 
     /** الرنّة التالية بعد الآن في الجدول المحفوظ: [وقتها بساعة الهاتف، المفتاح] */
@@ -146,7 +164,7 @@ object BellPlan {
 
 /**
  * يستيقظ في موعد الرنّة ولو كان المعالج نائماً أو قُتلت العملية: يرنّ إن لم يرنّ الموعد بعد ولم يفت بأكثر من دقيقتين،
- * ثم يضبط الرنّة التالية. لا يطلب الشبكة.
+ * ثم يضبط الرنّة التالية. لا يطلب الجدول من الشبكة؛ وتقرير الرنّة (BellReport) يُرسل في خيط خلفي لا ينتظره الرنين.
  */
 class BellAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, intent: Intent) {
@@ -167,14 +185,18 @@ class BellAlarmReceiver : BroadcastReceiver() {
                 val k = BellPlan.key(n.first, r.first)
                 if (BellPlan.wasRung(c, k)) continue
                 BellPlan.markRung(c, k)
+                val hm = BellPlan.hm(r.first)
                 if (n.second - r.first <= 2.0) {
                     val at = i * 2500L
-                    Handler(Looper.getMainLooper()).postDelayed({ BellTone.play(2) }, at)
+                    val day = n.first
+                    Handler(Looper.getMainLooper()).postDelayed({ BellTone.play(2); BellReport.queue(c, day, hm, true) }, at)
                     delay = at + 2500L
                     i++
-                }
+                } else if (BellPlan.afterOn(c, n.first, r.first)) BellReport.queue(c, n.first, hm, false)
             }
             BellPlan.schedule(c)
+            // تقارير سابقة لم تُرسل (انقطع الإنترنت): محاولة جديدة مع كل منبّه، في خيط خلفي
+            BellReport.flush(c)
         } catch (e: Exception) {}
         Handler(Looper.getMainLooper()).postDelayed({
             try { wl?.release() } catch (e: Exception) {}

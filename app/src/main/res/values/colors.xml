@@ -2,5 +2,10 @@
 <resources>
     <color name="ibh_green">#173E25</color>
     <color name="ibh_cream">#FFFDF8</color>
+    <color name="ibh_ink">#18231D</color>
+    <color name="ibh_muted">#5A655F</color>
+    <color name="ibh_orange">#E8602C</color>
+    <color name="ibh_tint">#EEF3EF</color>
+    <color name="ibh_line">#D9E3DC</color>
     <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

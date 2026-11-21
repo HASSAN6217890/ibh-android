@@ -58,4 +58,18 @@
     <string name="bell_token_rejected_once">رفضت المنصة رمز الجرس الآن. ستُعاد المحاولة بعد دقيقة، وإن رُفض ثانية يُحذف الرمز.</string>
     <string name="save_type_blocked">لا يُحفظ هذا النوع من الملفات من التطبيق.</string>
     <string name="save_too_large">الملف أكبر من أن يُحفظ من التطبيق (الحد 25 م.ب).</string>
+
+    <!-- أداة الإدارة على الشاشة الرئيسية -->
+    <string name="widget_label">ملخص الإدارة</string>
+    <string name="widget_desc">تثبيت الحصص وتفقّد الطلاب والمهام بنظرة واحدة</string>
+    <string name="w_title">معهد ابن حذافة</string>
+    <string name="w_updated">آخر تحديث</string>
+    <string name="w_loading">جارٍ التحديث…</string>
+    <string name="w_stale">غير محدَّث</string>
+    <string name="w_stale_empty">تعذّر التحديث. اضغط هنا لإعادة المحاولة.</string>
+    <string name="w_login">افتح التطبيق وادخل</string>
+    <string name="w_finish">افتح التطبيق لإكمال الدخول</string>
+    <string name="w_admin_only">هذه الأداة للإدارة</string>
+    <string name="w_all_clear">لا شيء بانتظارك</string>
+    <string name="w_has_reminders">لديك تذكيرات. كبّر الأداة أو اضغط هنا.</string>
 </resources>

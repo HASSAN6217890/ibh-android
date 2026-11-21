@@ -60,14 +60,19 @@ class NativeBridge(private val a: MainActivity) {
     @JavascriptInterface
     fun tokenSet(s: String?, t: String?) {
         if (!ok(s) || t == null || !TOKEN_RE.matcher(t).matches()) return
+        // يُستدعى مع كل تحميل صفحة: الأداة تُحدَّث عند تغيّر الحساب فقط
+        val changed = t != a.store.get(SecureStore.SESSION)
         a.store.put(SecureStore.SESSION, t)
+        if (changed) try { WidgetData.sessionChanged(a) } catch (e: Exception) {}
     }
 
     /** الخروج أو انتهاء الجلسة أو صفحة بلا جلسة: يُمسح الرمز المحفوظ */
     @JavascriptInterface
     fun tokenClear(s: String?) {
         if (!ok(s)) return
+        val had = a.store.get(SecureStore.SESSION) != null
         a.store.put(SecureStore.SESSION, null)
+        if (had) try { WidgetData.loggedOut(a) } catch (e: Exception) {}
     }
 
     /** فتح وضع «هاتف الجرس» (لزر تضيفه المنصة لاحقاً في شاشة الدخول أو صفحة الجرس) */

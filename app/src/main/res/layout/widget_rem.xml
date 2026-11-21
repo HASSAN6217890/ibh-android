@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- سطر تذكير في الحجم الأكبر من أداة الإدارة -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_rem_t"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="2dp"
+    android:minHeight="28dp"
+    android:gravity="center_vertical|start"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:background="@drawable/widget_cell"
+    android:textColor="@color/ibh_ink"
+    android:textSize="12sp"
+    android:maxLines="1"
+    android:ellipsize="end"
+    android:textDirection="rtl" />

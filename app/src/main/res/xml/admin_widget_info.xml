@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- أداة الإدارة على الشاشة الرئيسية (AdminWidget.kt): 2×2 فأكبر، والحجم الأكبر يُظهر التذكيرات. التحديث الدوري كل 30 دقيقة -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_admin"
+    android:previewLayout="@layout/widget_admin"
+    android:description="@string/widget_desc" />
