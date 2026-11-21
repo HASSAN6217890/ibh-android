@@ -105,7 +105,29 @@ object BellPlan {
         if (p.size != 2) return false
         val m0 = p[1].toIntOrNull() ?: return false
         val cmp = date.compareTo(p[0])
-        return cmp > 0 || (cmp == 0 && m >= m0)
+        // الموعد في دقيقة التشغيل نفسها لا يُعدّ (ربما فات قبل الضغط بثوانٍ)
+        return cmp > 0 || (cmp == 0 && m > m0)
+    }
+
+    /** عند التشغيل بالزر: مواعيد اليوم حتى الآن تُعلَّم «رنّت» بلا تقرير، فلا يرنّها المنبّه ولا يعدّها «فاتت» */
+    fun markPastAsRung(c: Context, feed: JSONObject?, date: String, minute: Double) {
+        for (r in rings(day(feed, date))) if (r.first <= minute) { val k = key(date, r.first); if (!wasRung(c, k)) markRung(c, k) }
+    }
+
+    // ---- آخر دقيقة فحصها المنبّه: موعد أُضيف إلى الجدول بعد فوات وقته لا يُعدّ «فات ولم يرنّ»
+
+    fun setChecked(c: Context, date: String, minute: Double) {
+        prefs(c).edit().putString("rx_last", date + "|" + minute.toInt()).apply()
+    }
+
+    /** هل وقع الموعد بعد آخر فحص (فكان في الجدول المحفوظ قبل أن يفوت)؟ بلا فحص سابق: نعم (afterOn يحرس) */
+    fun afterChecked(c: Context, date: String, m: Int): Boolean {
+        val s = prefs(c).getString("rx_last", null) ?: return true
+        val p = UiKit.splitOn(s, '|')
+        if (p.size != 2) return true
+        val m0 = p[1].toIntOrNull() ?: return true
+        val cmp = date.compareTo(p[0])
+        return cmp > 0 || (cmp == 0 && m > m0)
     }
 
     // ---- المنبّه الدقيق
@@ -192,8 +214,9 @@ class BellAlarmReceiver : BroadcastReceiver() {
                     Handler(Looper.getMainLooper()).postDelayed({ BellTone.play(2); BellReport.queue(c, day, hm, true) }, at)
                     delay = at + 2500L
                     i++
-                } else if (BellPlan.afterOn(c, n.first, r.first)) BellReport.queue(c, n.first, hm, false)
+                } else if (BellPlan.afterOn(c, n.first, r.first) && BellPlan.afterChecked(c, n.first, r.first)) BellReport.queue(c, n.first, hm, false)
             }
+            BellPlan.setChecked(c, n.first, n.second)
             BellPlan.schedule(c)
             // تقارير سابقة لم تُرسل (انقطع الإنترنت): محاولة جديدة مع كل منبّه، في خيط خلفي
             BellReport.flush(c)

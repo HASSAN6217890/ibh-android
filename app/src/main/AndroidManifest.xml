@@ -59,11 +59,12 @@
         <!-- المنبّه الدقيق لهاتف الجرس (BellPlan.kt): غير مُصدَّر -->
         <receiver android:name=".BellAlarmReceiver" android:exported="false" />
 
-        <!-- أداة الإدارة على الشاشة الرئيسية (AdminWidget.kt). مُصدَّرة لأن النظام يرسل إليها APPWIDGET_UPDATE؛
-             ولا تطلب الشبكة أكثر من مرة في الدقيقة مهما أُرسل إليها. لا إذن جديد -->
+        <!-- أداة الإدارة على الشاشة الرئيسية (AdminWidget.kt). مُصدَّرة لأن النظام يرسل إليها APPWIDGET_UPDATE،
+             ومحمية بـ BIND_APPWIDGET (لا يرسل إليها إلا النظام)؛ ولا تطلب الشبكة أكثر من مرة في الدقيقة مهما أُرسل إليها. لا إذن جديد -->
         <receiver
             android:name=".AdminWidget"
             android:exported="true"
+            android:permission="android.permission.BIND_APPWIDGET"
             android:label="@string/widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

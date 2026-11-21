@@ -92,6 +92,7 @@ class NativeBridge(private val a: MainActivity) {
         val v = t.trim().lowercase(java.util.Locale.ROOT)
         if (!BellActivity.TOKEN_RE.matcher(v).matches()) return false
         a.store.put(SecureStore.BELL, v)
+        BellReport.purgeOthers(a)
         a.runOnUiThread { a.openBell() }
         return true
     }

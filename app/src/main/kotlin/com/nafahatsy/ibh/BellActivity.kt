@@ -185,7 +185,7 @@ class BellActivity : Activity() {
         val forget = tv(14f, Cfg.ORANGE)
         forget.text = getString(R.string.bell_forget)
         forget.setPadding(0, Cfg.dp(this, 14), 0, Cfg.dp(this, 6))
-        forget.setOnClickListener { stop(); store.put(SecureStore.BELL, null); prefs.edit().remove("feed").apply(); feed = null; refreshTokenUi(); render() }
+        forget.setOnClickListener { stop(); store.put(SecureStore.BELL, null); BellReport.purgeOthers(this); prefs.edit().remove("feed").apply(); feed = null; refreshTokenUi(); render() }
         add(tokenBox, forget)
         add(col, tokenBox)
 
@@ -223,6 +223,7 @@ class BellActivity : Activity() {
         val t = raw.trim().lowercase(Locale.ROOT)
         if (!TOKEN_RE.matcher(t).matches()) { toast(getString(R.string.bell_bad_token)); return }
         store.put(SecureStore.BELL, t)
+        BellReport.purgeOthers(this)
         if (store.get(SecureStore.BELL) == null) { toast(getString(R.string.bell_store_failed)); return }
         tokenIn.setText("")
         prefs.edit().remove("feed").apply(); feed = null
@@ -239,6 +240,7 @@ class BellActivity : Activity() {
         prefs.edit().putBoolean("on", true).apply()
         val t0 = now()
         BellPlan.markOnFrom(this, t0.first, t0.second, byUser)
+        if (byUser) { BellPlan.markPastAsRung(this, feed, t0.first, t0.second); BellPlan.setChecked(this, t0.first, t0.second) }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         showOverLock(true)
         acquireCpu()
@@ -426,6 +428,7 @@ class BellActivity : Activity() {
             rejects = 0
             stop()
             store.put(SecureStore.BELL, null)
+            BellReport.purgeOthers(this)
             prefs.edit().remove("feed").apply(); feed = null
             refreshTokenUi()
             toast(getString(R.string.bell_token_rejected))

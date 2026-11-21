@@ -89,12 +89,15 @@ object WidgetData {
         val fin = Runnable { if (done.compareAndSet(false, true)) try { pr?.finish() } catch (e: Exception) {} }
         main.postDelayed(fin, 9000L)
         Thread {
-            try { fetch(c) } catch (e: Exception) { mark(c, S_STALE) }
+            var again = false
+            try { again = fetch(c) } catch (e: Exception) { mark(c, S_STALE) }
             finally {
                 busy.set(false)
                 try { renderAll(c) } catch (e: Exception) {}
                 main.post(fin)
             }
+            // تغيّر الحساب أثناء الطلب: طلب واحد جديد بالرمز الحالي (والأداة تعرض «جارٍ التحديث…» حتى يصل)
+            if (again) refresh(c, null)
         }.start()
     }
 
@@ -107,7 +110,8 @@ object WidgetData {
 
     /** دخول جديد (تغيّر رمز الجلسة): يُمسح ملخص الحساب السابق ويُطلب ملخص الحساب الجديد */
     fun sessionChanged(c: Context) {
-        prefs(c).edit().remove("data").remove("ok_at").putLong("try_at", 0L).apply()
+        prefs(c).edit().remove("state").remove("data").remove("ok_at").putLong("try_at", 0L).apply()
+        if (hasWidgets(c)) renderAll(c)
         if (hasWidgets(c)) refresh(c, null)
     }
 
@@ -123,10 +127,11 @@ object WidgetData {
         e.apply()
     }
 
-    private fun fetch(c: Context) {
+    /** يعيد true إن تغيّر رمز الجلسة أثناء الطلب فيجب طلب جديد */
+    private fun fetch(c: Context): Boolean {
         prefs(c).edit().putLong("try_at", System.currentTimeMillis()).apply()
         val tok = SecureStore(c).get(SecureStore.SESSION)
-        if (tok == null || !NativeBridge.TOKEN_RE.matcher(tok).matches()) { mark(c, S_LOGIN, true); return }
+        if (tok == null || !NativeBridge.TOKEN_RE.matcher(tok).matches()) { mark(c, S_LOGIN, true); return false }
         var code: Int
         var body: String? = null
         try {
@@ -145,7 +150,10 @@ object WidgetData {
             h.disconnect()
         } catch (e: Exception) { code = -1 }
         // تغيّر الحساب أثناء الطلب (خروج أو دخول آخر): لا يُكتب ملخص الحساب السابق
-        if (tok != SecureStore(c).get(SecureStore.SESSION)) return
+        if (tok != SecureStore(c).get(SecureStore.SESSION)) {
+            prefs(c).edit().remove("state").remove("data").remove("ok_at").apply()
+            return true
+        }
 
         when {
             code == 200 && body != null -> {
@@ -162,6 +170,7 @@ object WidgetData {
             }
             else -> mark(c, S_STALE) // لا اتصال، أو 404 قبل نشر الطريق، أو 5xx: يبقى المحفوظ ويظهر «غير محدَّث»
         }
+        return false
     }
 
     // ---------------------------------------------------------------- الرسم

@@ -62,12 +62,12 @@
     <!-- أداة الإدارة على الشاشة الرئيسية -->
     <string name="widget_label">ملخص الإدارة</string>
     <string name="widget_desc">تثبيت الحصص وتفقّد الطلاب والمهام بنظرة واحدة</string>
-    <string name="w_title">معهد ابن حذافة</string>
+    <string name="w_title">معهد عبد الله بن حذافة</string>
     <string name="w_updated">آخر تحديث</string>
     <string name="w_loading">جارٍ التحديث…</string>
     <string name="w_stale">غير محدَّث</string>
     <string name="w_stale_empty">تعذّر التحديث. اضغط هنا لإعادة المحاولة.</string>
-    <string name="w_login">افتح التطبيق وادخل</string>
+    <string name="w_login">افتح التطبيق وسجّل الدخول</string>
     <string name="w_finish">افتح التطبيق لإكمال الدخول</string>
     <string name="w_admin_only">هذه الأداة للإدارة</string>
     <string name="w_all_clear">لا شيء بانتظارك</string>

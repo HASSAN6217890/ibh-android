@@ -75,6 +75,22 @@ object BellReport {
         } catch (e: Exception) {}
     }
 
+    /** بعد حفظ رمز جديد أو حذفه: تُحذف فوراً بنود الرموز الأخرى (لا تُرسل أبداً برمز غير رمزها) */
+    fun purgeOthers(ctx: Context) {
+        val c = ctx.applicationContext
+        try {
+            val tok = token(c)
+            val k = if (tok != null) fp(tok) else null
+            synchronized(lock) {
+                val old = load(c)
+                val out = JSONArray()
+                if (k != null) for (i in 0 until old.length()) { val o = old.optJSONObject(i) ?: continue; if (o.optString("k") == k) out.put(o) }
+                save(c, out)
+            }
+            nextTry = 0L
+        } catch (e: Exception) {}
+    }
+
     fun pending(c: Context): Boolean = BellPlan.prefs(c).contains(KEY)
 
     /** يرسل ما في الطابور في خيط خلفي. يُستدعى كثيراً (مع كل دورة للشاشة)، فلا يعمل إلا إن كان في الطابور شيء وحلّ موعد المحاولة */
@@ -92,7 +108,7 @@ object BellReport {
         }.start()
     }
 
-    /** true إن فرغ الطابور مما يمكن إرساله الآن */
+    /** true إن أُرسل كل ما في الطابور؛ وfalse (فتُؤجَّل المحاولة دقيقتين) إن بقي شيء أو لم يُرسل شيء */
     private fun sendAll(c: Context): Boolean {
         val tok = token(c)
         val k = if (tok != null) fp(tok) else ""
@@ -105,7 +121,7 @@ object BellReport {
             val id = o.optString("k") + "|" + o.optString("date") + "|" + o.optString("at") + "|" + o.optLong("q")
             if (now - o.optLong("q") > MAX_AGE) { drop.add(id); continue }
             // بند من رمز سابق (فرع آخر أو رمز أُلغي): لا يُرسل برمز غيره، ويبقى حتى تنتهي مدته إن عاد رمزه
-            if (tok == null || o.optString("k") != k) continue
+            if (tok == null || o.optString("k") != k) { allDone = false; continue }
             val code = post(c, tok, o)
             if (code in 200..299 || code == 400 || code == 413 || code == 422) drop.add(id)
             else { allDone = false; break }
