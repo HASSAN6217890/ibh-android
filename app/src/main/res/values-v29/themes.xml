@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- من أندرويد 10: سمة النهار/الليل، فيتبع WebView الوضع الليلي في المنصة (prefers-color-scheme) -->
+    <style name="AppTheme" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:colorPrimary">@color/ibh_green</item>
+        <item name="android:colorPrimaryDark">@color/ibh_green</item>
+        <item name="android:colorAccent">@color/ibh_green</item>
+        <item name="android:statusBarColor">@color/ibh_green</item>
+        <item name="android:navigationBarColor">@color/ibh_green</item>
+        <item name="android:windowBackground">@color/ibh_cream</item>
+    </style>
+    <style name="AppTheme.Launch">
+        <item name="android:windowBackground">@drawable/launch_bg</item>
+    </style>
+</resources>
