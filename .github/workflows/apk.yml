@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # لنشر ملفات البناء كإصدار تجريبي (بإذن حسان 2026-11-21)
 
 jobs:
   build:
@@ -77,3 +77,13 @@ jobs:
           name: ibh-apk-unsigned
           path: dist/
           retention-days: 14
+
+      - name: Publish build files as a pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="build-${{ github.run_number }}"
+          gh release create "$TAG" dist/* --repo "${{ github.repository }}" --prerelease \
+            --title "بناء رسمي غير موقَّع ${{ github.run_number }}" \
+            --notes "ملفات البناء بأدوات Google الرسمية، قبل التوقيع. ليست للتثبيت؛ النسخة الموقّعة تُوزَّع من المنصة."
