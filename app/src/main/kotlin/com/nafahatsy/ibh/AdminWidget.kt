@@ -135,6 +135,8 @@ object WidgetData {
             h.useCaches = false
             h.setRequestProperty("Authorization", "Bearer $tok")
             h.setRequestProperty("X-IBH-App", "1")
+            // طلب الأداة لا يمدّد الجلسة ولا يغيّر «آخر نشاط» على الخادم (الدفعة 30)
+            h.setRequestProperty("X-IBH-Widget", "1")
             h.setRequestProperty("Accept", "application/json")
             h.setRequestProperty("User-Agent", "IBHApp/" + Cfg.versionName(c) + " (Android " + Build.VERSION.RELEASE + "; widget)")
             code = h.responseCode
