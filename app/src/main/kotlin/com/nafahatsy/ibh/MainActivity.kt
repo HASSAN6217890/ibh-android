@@ -98,6 +98,7 @@ class MainActivity : Activity() {
         target = if (Cfg.isOurs(saved)) saved!! else Cfg.HOME
         boot()
         checkWebViewVersion()
+        registerBack()
         if (ACTION_BELL == intent?.action) openBell()
     }
 
@@ -608,11 +609,27 @@ class MainActivity : Activity() {
     override fun onPause() { super.onPause(); web.onPause() }
     override fun onResume() { super.onResume(); web.onResume() }
 
-    @Deprecated("Activity API")
-    override fun onBackPressed() {
+    /**
+     * الرجوع: من أندرويد 13 عبر OnBackInvokedCallback، لأن إيماءة الرجوع (الرجوع التنبؤي، مفعّل افتراضاً للتطبيقات
+     * التي تستهدف 36 فما فوق على أندرويد 16+) لا تستدعي onBackPressed فتُغلق التطبيق بدل الرجوع داخل المنصة.
+     * onBackPressed يبقى لأندرويد 12 فما دون.
+     */
+    private fun registerBack() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                android.window.OnBackInvokedCallback { handleBack() })
+        }
+    }
+
+    private fun handleBack() {
         if (errorView.visibility == View.VISIBLE) { finish(); return }
         if (web.canGoBack()) web.goBack() else finish()
     }
+
+    @Deprecated("Activity API")
+    @Suppress("GestureBackNavigation")
+    override fun onBackPressed() = handleBack()
 
     override fun onDestroy() {
         ui.removeCallbacksAndMessages(null)

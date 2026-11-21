@@ -78,6 +78,12 @@ class BellActivity : Activity() {
         refreshTokenUi()
         if (token() != null && prefs.getBoolean("on", false)) start() else render()
         if (token() != null) fetch()
+        // إيماءة الرجوع على أندرويد 13+ (الرجوع التنبؤي لا يستدعي onBackPressed): نفس القاعدة، لا خروج والجرس يعمل
+        if (Build.VERSION.SDK_INT >= 33) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                android.window.OnBackInvokedCallback { handleBack() })
+        }
     }
 
     private fun token(): String? {
@@ -424,12 +430,15 @@ class BellActivity : Activity() {
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
 
-    @Deprecated("Activity API")
-    override fun onBackPressed() {
+    private fun handleBack() {
         // الجرس يعمل: تبقى الشاشة في المقدّمة، ولا خروج إلا بـ «أوقف الجرس»
         if (on) { toast(getString(R.string.bell_stop_first)); return }
-        @Suppress("DEPRECATION") super.onBackPressed()
+        finish()
     }
+
+    @Deprecated("Activity API")
+    @Suppress("GestureBackNavigation")
+    override fun onBackPressed() = handleBack()
 
     override fun onDestroy() {
         ui.removeCallbacksAndMessages(null)

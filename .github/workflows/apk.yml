@@ -53,15 +53,15 @@ jobs:
           BT="$ANDROID_HOME/build-tools/$BT_VER"
           mkdir -p dist
           IN=$(ls app/build/outputs/apk/release/*-unsigned.apk | head -1)
-          "$BT/zipalign" -f -p 4 "$IN" dist/ibh-1.0.1-2-unsigned-aligned.apk
-          "$BT/zipalign" -c -p 4 dist/ibh-1.0.1-2-unsigned-aligned.apk
+          "$BT/zipalign" -f -p 4 "$IN" dist/ibh-1.0.2-3-unsigned-aligned.apk
+          "$BT/zipalign" -c -p 4 dist/ibh-1.0.2-3-unsigned-aligned.apk
           cp "$BT/lib/apksigner.jar" dist/apksigner.jar
           cp "$BT/aapt2" dist/aapt2
           cp "$BT/zipalign" dist/zipalign
           cp app/build/outputs/mapping/release/mapping.txt dist/ 2>/dev/null || true
           cp app/build/reports/lint-results-release.html dist/ 2>/dev/null || true
           cp app/build/reports/lint-results-release.txt dist/ 2>/dev/null || true
-          "$BT/aapt2" dump badging dist/ibh-1.0.1-2-unsigned-aligned.apk > dist/badging.txt
+          "$BT/aapt2" dump badging dist/ibh-1.0.2-3-unsigned-aligned.apk > dist/badging.txt
           {
             echo "java: $(java -version 2>&1 | head -1)"
             echo "gradle: $(gradle --version | grep '^Gradle')"
