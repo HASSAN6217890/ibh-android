@@ -93,6 +93,7 @@ object WidgetData {
             try { again = fetch(c) } catch (e: Exception) { mark(c, S_STALE) }
             finally {
                 busy.set(false)
+                loading = false
                 try { renderAll(c) } catch (e: Exception) {}
                 main.post(fin)
             }
@@ -180,14 +181,12 @@ object WidgetData {
         for (id in ids(c)) try { render(c, m, id) } catch (e: Exception) {}
     }
 
+    /** ضغطة ↻: «جارٍ التحديث…» في الرأس حتى يصل الرد (رسم كامل، لأن أندرويد 12+ يرسم تخطيطاً لكل حجم) */
+    @Volatile private var loading = false
+
     fun showLoading(c: Context) {
-        val m = AppWidgetManager.getInstance(c)
-        for (id in ids(c)) try {
-            val rv = RemoteViews(c.packageName, R.layout.widget_admin)
-            rv.setTextViewText(R.id.w_time, c.getString(R.string.w_loading))
-            rv.setTextColor(R.id.w_time, Cfg.MUTED)
-            m.partiallyUpdateAppWidget(id, rv)
-        } catch (e: Exception) {}
+        loading = true
+        renderAll(c)
     }
 
     private fun openIntent(c: Context, req: Int, route: String?): PendingIntent {
@@ -205,22 +204,53 @@ object WidgetData {
 
     private fun num(n: Int): String = if (n > 99) "99+" else n.toString()
 
+    private const val RED = 0xFFB23A22.toInt()
+    private const val AMBER = 0xFF9A5F06.toInt()
+
+    /** شدة العدّاد: من الخادم إن أرسل level، وإلا بالمفتاح (الأجراس الفائتة والمهام المتأخرة أحمر، وما ينتظر اليوم كهرماني) */
+    private fun level(it: JSONObject): Int {
+        val l = it.optString("level")
+        if (l == "red") return 2
+        if (l == "amber") return 1
+        val k = it.optString("key")
+        return if (k == "bell" || k == "tasks") 2 else 1
+    }
+
+    private fun levelColor(lv: Int) = if (lv == 2) RED else AMBER
+
     fun render(c: Context, m: AppWidgetManager, id: Int) {
+        val o = try { m.getAppWidgetOptions(id) } catch (e: Exception) { null }
+        if (Build.VERSION.SDK_INT >= 31) {
+            // أندرويد 12+: تخطيط لكل حجم، والمشغّل يختار ما يناسب عند تغيير الحجم بلا طلب جديد
+            val map = HashMap<android.util.SizeF, RemoteViews>()
+            for (s in SIZES) map[android.util.SizeF(s[0].toFloat(), s[1].toFloat())] = build(c, s[0], s[1])
+            m.updateAppWidget(id, RemoteViews(map))
+            return
+        }
+        var w = o?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: 0
+        var h = o?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT) ?: 0
+        if (w <= 0) w = 250
+        if (h <= 0) h = 110
+        m.updateAppWidget(id, build(c, w, h))
+    }
+
+    /** الأحجام المرسومة لأندرويد 12+ (عرض×ارتفاع بالـ dp): 2×2 قصير وعادي وطويل، و4×2 و4×3 و4×4 */
+    private val SIZES = arrayOf(intArrayOf(110, 100), intArrayOf(110, 170), intArrayOf(110, 250),
+        intArrayOf(250, 100), intArrayOf(250, 180), intArrayOf(250, 280))
+
+    private fun build(c: Context, w: Int, h: Int): RemoteViews {
         val p = prefs(c)
         // بلا حالة بعد (أُضيفت الأداة للتو والطلب الأول جارٍ): «جارٍ التحديث…»
         val state = p.getString("state", null) ?: ""
         val data = try { p.getString("data", null)?.let { JSONObject(it) } } catch (e: Exception) { null }
-        val o = try { m.getAppWidgetOptions(id) } catch (e: Exception) { null }
-        val w = o?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: 0
-        val h = o?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT) ?: 0
+        val narrow = w < 200
 
         val rv = RemoteViews(c.packageName, R.layout.widget_admin)
-        rv.setOnClickPendingIntent(R.id.w_head, refreshIntent(c))
+        rv.setOnClickPendingIntent(R.id.w_head, openIntent(c, 98, "#day"))
+        rv.setOnClickPendingIntent(R.id.w_refresh, refreshIntent(c))
         rv.removeAllViews(R.id.w_grid)
         rv.removeAllViews(R.id.w_rem)
-        rv.setViewVisibility(R.id.w_grid, View.GONE)
-        rv.setViewVisibility(R.id.w_rem, View.GONE)
-        rv.setViewVisibility(R.id.w_msg, View.GONE)
+        for (v in intArrayOf(R.id.w_grid, R.id.w_rem, R.id.w_msgrow, R.id.w_hero, R.id.w_badge, R.id.w_time)) rv.setViewVisibility(v, View.GONE)
 
         val scope = data?.optString("scope")?.takeIf { it.isNotBlank() && it != "null" }
             ?: data?.optString("day_label")?.takeIf { it.isNotBlank() && it != "null" }
@@ -228,101 +258,149 @@ object WidgetData {
         rv.setTextViewText(R.id.w_scope, clip(scope, 40))
         val asOf = data?.optString("as_of")?.takeIf { it.length in 4..5 } ?: ""
 
-        // الحالات التي لا تُعرض فيها أرقام
         val blocker = when (state) {
+            "" -> R.string.w_loading
             S_LOGIN -> R.string.w_login
             S_FINISH -> R.string.w_finish
             S_ADMIN -> R.string.w_admin_only
-            "" -> R.string.w_loading
             else -> if (data == null) (if (state == S_STALE) R.string.w_stale_empty else R.string.w_login) else 0
         }
         if (blocker != 0) {
+            // سطر واحد مع الشعار، لا بطاقة فارغة كبيرة
             rv.setTextViewText(R.id.w_scope, c.getString(R.string.w_title))
-            rv.setTextViewText(R.id.w_time, if (state == S_STALE) c.getString(R.string.w_stale) else "")
-            rv.setTextColor(R.id.w_time, Cfg.ORANGE)
-            rv.setTextViewText(R.id.w_msg, c.getString(blocker))
-            rv.setTextColor(R.id.w_msg, Cfg.GREEN_800)
-            rv.setViewVisibility(R.id.w_msg, View.VISIBLE)
-            // بلا اتصال ولا محفوظ: الضغط يعيد المحاولة؛ وغيره يفتح التطبيق (للدخول أو لإكماله)
-            rv.setOnClickPendingIntent(R.id.w_msg, if (state == S_STALE) refreshIntent(c) else openIntent(c, 99, null))
-            m.updateAppWidget(id, rv)
-            return
+            if (loading) time(rv, c.getString(R.string.w_loading), Cfg.MUTED)
+            else if (state == S_STALE) time(rv, c.getString(R.string.w_stale), RED)
+            msg(rv, c.getString(blocker), Cfg.GREEN_800, true,
+                if (state == S_STALE) refreshIntent(c) else openIntent(c, 99, null))
+            return rv
         }
 
         val d = data!!
-        if (state == S_STALE) {
-            rv.setTextViewText(R.id.w_time, c.getString(R.string.w_stale) + (if (asOf.isNotEmpty()) " · $asOf" else ""))
-            rv.setTextColor(R.id.w_time, Cfg.ORANGE)
-        } else {
-            rv.setTextViewText(R.id.w_time, if (asOf.isNotEmpty()) c.getString(R.string.w_updated) + " " + asOf else "")
-            rv.setTextColor(R.id.w_time, Cfg.MUTED)
-        }
+        if (loading) time(rv, c.getString(R.string.w_loading), Cfg.MUTED)
+        else if (state == S_STALE) time(rv, c.getString(R.string.w_stale) + (if (asOf.isNotEmpty() && !narrow) " · $asOf" else ""), RED)
+        else if (!narrow && asOf.isNotEmpty()) time(rv, c.getString(R.string.w_updated) + " " + asOf, Cfg.MUTED)
 
         val items = d.optJSONArray("items") ?: JSONArray()
         val rems = d.optJSONArray("reminders") ?: JSONArray()
-        var any = false
         val list = ArrayList<JSONObject>()
+        var anyN = false
         for (i in 0 until items.length()) {
             val it = items.optJSONObject(i) ?: continue
             if (it.optString("label").isBlank()) continue
             list.add(it)
-            if (it.optInt("n", 0) > 0) any = true
-            if (list.size >= 6) break
+            if (it.optInt("n", 0) > 0) anyN = true
+            if (list.size >= 8) break
         }
-        if (rems.length() > 0) any = true
+        val remList = ArrayList<JSONObject>()
+        for (i in 0 until rems.length()) { val r = rems.optJSONObject(i) ?: continue; if (r.optString("text").isNotBlank()) remList.add(r) }
 
-        if (!any) {
-            rv.setTextViewText(R.id.w_msg, c.getString(R.string.w_all_clear))
-            rv.setTextColor(R.id.w_msg, Cfg.GREEN_800)
-            rv.setViewVisibility(R.id.w_msg, View.VISIBLE)
-            rv.setOnClickPendingIntent(R.id.w_msg, openIntent(c, 99, "#day"))
-            m.updateAppWidget(id, rv)
-            return
+        if (!anyN && remList.isEmpty()) {
+            msg(rv, "✓  " + c.getString(R.string.w_all_clear), Cfg.GREEN_800, false, openIntent(c, 99, "#day"))
+            return rv
         }
 
-        // العدّادات: صفّان من اثنين في الحجم 2×2، وصف واحد حين تتسع الأداة
-        val perRow = if (w >= 250) (if (list.size < 4) list.size else 4) else 2
+        // 2×2 قصير (أقل من 130dp): سطر واحد بأهم عدد بدل المربعات
+        if (narrow && h < 130) {
+            var best: JSONObject? = null
+            var others = 0
+            for (it in list) {
+                val n = it.optInt("n", 0)
+                if (n <= 0) continue
+                others++
+                val b = best
+                if (b == null || level(it) > level(b) || (level(it) == level(b) && n > b.optInt("n", 0))) best = it
+            }
+            val b = best
+            if (b != null) {
+                val txt = num(b.optInt("n", 0)) + " " + clip(b.optString("label"), 24) + (if (others > 1) " · " + c.getString(R.string.w_more, (others - 1).toString()) else "")
+                rv.setTextViewText(R.id.w_hero, txt)
+                rv.setTextColor(R.id.w_hero, levelColor(level(b)))
+                rv.setOnClickPendingIntent(R.id.w_hero, openIntent(c, 100, b.optString("route")))
+                rv.setViewVisibility(R.id.w_hero, View.VISIBLE)
+            }
+            if (remList.isNotEmpty()) badge(rv, c, remList)
+            if (b == null) remLines(rv, c, remList, 1)
+            return rv
+        }
+
+        // المربعات بارتفاع ثابت: 48dp في 2×2، و56dp في 4×2، و64dp في 4×3 فأكبر
+        val tile = if (narrow) R.layout.widget_item_s else if (h >= 170) R.layout.widget_item_l else R.layout.widget_item_m
+        val tileH = if (narrow) 48 else if (h >= 170) 64 else 56
+        val perRow = if (narrow) 2 else 4
         var row: RemoteViews? = null
         var inRow = 0
+        var rows = 0
         for (i in list.indices) {
             val it = list[i]
             if (row == null) { row = RemoteViews(c.packageName, R.layout.widget_row); inRow = 0 }
             val n = it.optInt("n", 0)
-            val label = clip(it.optString("label"), 28)
-            val cell = RemoteViews(c.packageName, R.layout.widget_item)
+            val label = clip(it.optString("label"), 26)
+            val cell = RemoteViews(c.packageName, tile)
             cell.setTextViewText(R.id.w_n, num(n))
-            cell.setTextColor(R.id.w_n, if (n > 0) Cfg.ORANGE else Cfg.GREEN_800)
-            cell.setTextViewText(R.id.w_label, label)
+            cell.setTextColor(R.id.w_n, if (n > 0) levelColor(level(it)) else Cfg.GREEN_800)
+            cell.setTextViewText(R.id.w_label, if (n > 0) label else "✓ $label")
             cell.setContentDescription(R.id.w_item, label + ": " + n)
             cell.setOnClickPendingIntent(R.id.w_item, openIntent(c, 100 + i, it.optString("route")))
             row.addView(R.id.w_row, cell)
             inRow++
-            if (inRow >= perRow || i == list.size - 1) { rv.addView(R.id.w_grid, row); row = null }
+            if (inRow >= perRow || i == list.size - 1) { rv.addView(R.id.w_grid, row); row = null; rows++ }
         }
-        rv.setViewVisibility(R.id.w_grid, if (list.isEmpty()) View.GONE else View.VISIBLE)
+        if (rows > 0) rv.setViewVisibility(R.id.w_grid, View.VISIBLE)
 
-        // التذكيرات في الحجم الأكبر فقط (ارتفاع 190dp فأكثر)، حتى ثلاثة بحسب المساحة
-        val roomFor = if (h >= 190) { val k = (h - 150) / 32; if (k > 3) 3 else if (k < 1) 1 else k } else 0
-        var shown = 0
-        for (i in 0 until rems.length()) {
-            if (shown >= roomFor) break
-            val r = rems.optJSONObject(i) ?: continue
-            val t = r.optString("text")
-            if (t.isBlank()) continue
+        // التذكيرات في المساحة الباقية: سطر 28dp (+2) لكل تذكير، وإن لم تتسع لها كلها فآخر سطر «+N تذكيرات أخرى ›»
+        if (remList.isNotEmpty()) {
+            val left = h - 20 - 32 - rows * (tileH + 4) - 4
+            var lines = left / 30
+            if (!narrow && lines < 1) lines = 1
+            val cap = if (narrow) 3 else if (h >= 250) 5 else 4
+            if (lines > cap) lines = cap
+            if (lines <= 0) badge(rv, c, remList) else remLines(rv, c, remList, lines)
+        }
+        return rv
+    }
+
+    private fun time(rv: RemoteViews, s: String, color: Int) {
+        rv.setTextViewText(R.id.w_time, s)
+        rv.setTextColor(R.id.w_time, color)
+        rv.setViewVisibility(R.id.w_time, View.VISIBLE)
+    }
+
+    private fun msg(rv: RemoteViews, s: String, color: Int, logo: Boolean, tap: PendingIntent) {
+        rv.setTextViewText(R.id.w_msg, s)
+        rv.setTextColor(R.id.w_msg, color)
+        rv.setViewVisibility(R.id.w_logo, if (logo) View.VISIBLE else View.GONE)
+        rv.setViewVisibility(R.id.w_msgrow, View.VISIBLE)
+        rv.setOnClickPendingIntent(R.id.w_msgrow, tap)
+    }
+
+    /** شارة حمراء بعدد التذكيرات في الرأس، تفتح مسار أولها */
+    private fun badge(rv: RemoteViews, c: Context, rems: List<JSONObject>) {
+        rv.setTextViewText(R.id.w_badge, num(rems.size))
+        rv.setContentDescription(R.id.w_badge, c.getString(R.string.w_badge_cd, rems.size.toString()))
+        rv.setOnClickPendingIntent(R.id.w_badge, openIntent(c, 200, rems[0].optString("route")))
+        rv.setViewVisibility(R.id.w_badge, View.VISIBLE)
+    }
+
+    private fun remLines(rv: RemoteViews, c: Context, rems: List<JSONObject>, lines: Int) {
+        if (rems.isEmpty() || lines <= 0) return
+        val truncated = rems.size > lines
+        val show = if (truncated) lines - 1 else rems.size
+        for (i in 0 until show) {
+            val r = rems[i]
             val line = RemoteViews(c.packageName, R.layout.widget_rem)
-            line.setTextViewText(R.id.w_rem_t, "• " + clip(t, 90))
-            line.setOnClickPendingIntent(R.id.w_rem_t, openIntent(c, 200 + i, r.optString("route")))
+            line.setTextViewText(R.id.w_rem_t, clip(r.optString("text"), 90))
+            line.setTextColor(R.id.w_dot, AMBER)
+            line.setOnClickPendingIntent(R.id.w_rem_row, openIntent(c, 201 + i, r.optString("route")))
             rv.addView(R.id.w_rem, line)
-            shown++
         }
-        if (shown > 0) rv.setViewVisibility(R.id.w_rem, View.VISIBLE)
-        if (list.isEmpty() && shown == 0) {
-            // تذكيرات فقط والأداة صغيرة: سطر يدلّ عليها
-            rv.setTextViewText(R.id.w_msg, c.getString(R.string.w_has_reminders))
-            rv.setTextColor(R.id.w_msg, Cfg.ORANGE)
-            rv.setViewVisibility(R.id.w_msg, View.VISIBLE)
-            rv.setOnClickPendingIntent(R.id.w_msg, openIntent(c, 99, rems.optJSONObject(0)?.optString("route")))
+        if (truncated) {
+            val line = RemoteViews(c.packageName, R.layout.widget_rem)
+            line.setTextViewText(R.id.w_rem_t, c.getString(R.string.w_more_rem, (rems.size - show).toString()) + " ›")
+            line.setTextColor(R.id.w_rem_t, Cfg.GREEN_800)
+            line.setViewVisibility(R.id.w_dot, View.INVISIBLE)
+            line.setOnClickPendingIntent(R.id.w_rem_row, openIntent(c, 209, "#day"))
+            rv.addView(R.id.w_rem, line)
         }
-        m.updateAppWidget(id, rv)
+        rv.setViewVisibility(R.id.w_rem, View.VISIBLE)
     }
 }

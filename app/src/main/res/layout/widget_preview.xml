@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- معاينة ثابتة في قائمة الأدوات (أندرويد 12+) بأرقام نموذجية -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:layoutDirection="rtl"
+    android:background="@drawable/widget_bg"
+    android:padding="10dp">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="32dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="4dp">
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/w_title" android:textColor="@color/ibh_green" android:textSize="14sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" android:textDirection="rtl" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/w_prev_time" android:textColor="@color/ibh_muted" android:textSize="12sp" android:paddingStart="6dp" />
+        <TextView android:layout_width="32dp" android:layout_height="32dp" android:gravity="center" android:text="↻" android:textColor="@color/ibh_green" android:textSize="18sp" />
+    </LinearLayout>
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
+        <LinearLayout android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:layout_margin="2dp" android:orientation="vertical" android:gravity="center" android:background="@drawable/widget_cell">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="3" android:textColor="@color/ibh_amber" android:textSize="22sp" android:textStyle="bold" android:includeFontPadding="false" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/w_prev_att" android:textColor="@color/ibh_ink" android:textSize="11sp" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:layout_margin="2dp" android:orientation="vertical" android:gravity="center" android:background="@drawable/widget_cell">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="2" android:textColor="@color/ibh_amber" android:textSize="22sp" android:textStyle="bold" android:includeFontPadding="false" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/w_prev_lessons" android:textColor="@color/ibh_ink" android:textSize="11sp" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:layout_margin="2dp" android:orientation="vertical" android:gravity="center" android:background="@drawable/widget_cell">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1" android:textColor="@color/ibh_red" android:textSize="22sp" android:textStyle="bold" android:includeFontPadding="false" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/w_prev_tasks" android:textColor="@color/ibh_ink" android:textSize="11sp" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1" android:layout_margin="2dp" android:orientation="vertical" android:gravity="center" android:background="@drawable/widget_cell">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textColor="@color/ibh_green" android:textSize="22sp" android:textStyle="bold" android:includeFontPadding="false" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/w_prev_bell" android:textColor="@color/ibh_ink" android:textSize="11sp" android:maxLines="1" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

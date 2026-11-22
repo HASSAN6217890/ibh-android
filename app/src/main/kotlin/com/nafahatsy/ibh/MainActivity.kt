@@ -100,11 +100,13 @@ class MainActivity : Activity() {
         checkWebViewVersion()
         registerBack()
         if (ACTION_BELL == intent?.action) openBell()
+        if (ACTION_ALERTS == intent?.action) openAlerts()
     }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         if (ACTION_BELL == intent?.action) openBell()
+        if (ACTION_ALERTS == intent?.action) openAlerts()
         val w = widgetTarget(intent) ?: return
         // ضغطة في أداة الإدارة والتطبيق مفتوح: تغيّر العنوان داخل المنصة (hashchange)، أو تُعاد المحاولة إن كانت صفحة الخطأ ظاهرة
         target = w
@@ -504,6 +506,7 @@ class MainActivity : Activity() {
                 val r = pendingPerm; pendingPerm = null
                 if (r != null) { if (granted) r.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else r.deny() }
             }
+            REQ_NOTIF -> if (granted) RingSched.scheduleNext(this)
             REQ_WRITE -> {
                 val s = pendingSave; pendingSave = null
                 if (s != null) { if (granted) doSave(s.first, s.second, s.third) else toast(getString(R.string.save_denied)) }
@@ -620,7 +623,33 @@ class MainActivity : Activity() {
     override fun onPause() { super.onPause(); web.onPause() }
     // بعد العمل في المنصة (تثبيت حصة، إغلاق مهمة): تُحدَّث أداة الإدارة إن كانت مضافة
     override fun onStop() { super.onStop(); try { WidgetData.poke(this) } catch (e: Exception) {} }
-    override fun onResume() { super.onResume(); web.onResume() }
+    override fun onResume() {
+        super.onResume(); web.onResume()
+        // تنبيهات الدوام: تُجدَّد منبّهاتها، ويُطلب جدولها إن مضت 10 دقائق؛ وأول جدول فيه مواعيد يطلب إذن الإشعارات مرة واحدة
+        try { RingSched.onForeground(this) { has -> if (has) runOnUiThread { askNotifOnce() } } } catch (e: Exception) {}
+    }
+
+    private var notifDlg: AlertDialog? = null
+
+    /** أندرويد 13+: شرح بالعربية ثم طلب إذن الإشعارات، مرة واحدة فقط؛ وإن رُفض لا إلحاح (سطر في شاشة الإعدادات) */
+    private fun askNotifOnce() {
+        if (Build.VERSION.SDK_INT < 33 || isFinishing || notifDlg != null) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        val p = RingSched.prefs(this)
+        if (p.getBoolean("perm_asked", false)) return
+        p.edit().putBoolean("perm_asked", true).apply()
+        notifDlg = AlertDialog.Builder(this)
+            .setTitle(R.string.al_perm_t)
+            .setMessage(R.string.al_perm_msg)
+            .setPositiveButton(R.string.al_perm_yes) { _, _ -> requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF) }
+            .setNegativeButton(R.string.later, null)
+            .setOnDismissListener { notifDlg = null }
+            .show()
+    }
+
+    fun openAlerts() {
+        startActivity(Intent(this, AlertsActivity::class.java))
+    }
 
     /**
      * الرجوع: من أندرويد 13 عبر OnBackInvokedCallback، لأن إيماءة الرجوع (الرجوع التنبؤي، مفعّل افتراضاً للتطبيقات
@@ -663,5 +692,7 @@ class MainActivity : Activity() {
         private const val REQ_CAM_FILE = 12
         private const val REQ_CAM_MEDIA = 13
         private const val REQ_WRITE = 14
+        private const val REQ_NOTIF = 15
+        const val ACTION_ALERTS = "com.nafahatsy.ibh.ALERTS"
     }
 }

@@ -22,7 +22,6 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -48,7 +47,13 @@ class BellActivity : Activity() {
 
     private lateinit var statusT: TextView
     private lateinit var nextT: TextView
-    private lateinit var listT: TextView
+    private lateinit var nextBig: TextView
+    private lateinit var listBox: LinearLayout
+    private lateinit var msgT: TextView
+    private var listSig = ""
+    private val hideMsg = Runnable { msgT.visibility = View.GONE }
+    private var heldStopAt = 0L
+    private val holdStop = Runnable { if (on) { heldStopAt = System.currentTimeMillis(); stop(); say(getString(R.string.bell_stopped_msg)) } }
     private lateinit var logT: TextView
     private lateinit var toggle: Button
     private lateinit var tokenBox: LinearLayout
@@ -56,7 +61,6 @@ class BellActivity : Activity() {
     private lateinit var tokenLink: TextView
 
     private var feed: JSONObject? = null
-    private var offsetMs = 0L
     private var fetchedAt = 0L
     /** آخر تحميل ناجح للجدول (منفصل عن وقت آخر محاولة): لملاحظة «من آخر جدول محفوظ» */
     private var lastOkAt = 0L
@@ -131,15 +135,45 @@ class BellActivity : Activity() {
         col.setPadding(p, p, p, p)
         scroll.addView(col)
 
+        // الرجوع في الأعلى (سهم)، ولا خروج والجرس يعمل
+        val back = tv(16f, Cfg.GREEN_800, true)
+        back.text = "→  " + getString(R.string.bell_back)
+        back.minHeight = Cfg.dp(this, 48)
+        back.gravity = Gravity.CENTER_VERTICAL
+        back.setOnClickListener { handleBack() }
+        add(col, back)
+
         val title = tv(22f, Cfg.GREEN_800, true)
         title.text = getString(R.string.bell_title)
-        add(col, title)
-        statusT = tv(17f, Cfg.INK, true); add(col, statusT, top = 12)
-        nextT = tv(16f, Cfg.ORANGE, true); add(col, nextT, top = 6)
+        add(col, title, top = 4)
+        statusT = tv(17f, Cfg.INK, true); add(col, statusT, top = 10)
+        // الرنّة التالية كبيرة، وتحتها العدّ التنازلي
+        nextBig = tv(48f, Cfg.GREEN_800, true)
+        nextBig.setLineSpacing(0f, 1f)
+        add(col, nextBig, top = 8)
+        nextT = tv(16f, Cfg.MUTED, true); add(col, nextT, top = 0)
 
         toggle = btn(getString(R.string.bell_start), true)
-        toggle.setOnClickListener { if (on) stop() else start(true) }
+        toggle.setOnClickListener {
+            // رفع الإصبع بعد الإيقاف المطوّل يصل نقرةً: لا يُعاد تشغيل الجرس بها
+            if (System.currentTimeMillis() - heldStopAt < 3000L) return@setOnClickListener
+            if (on) say(getString(R.string.bell_hold_to_stop)) else start(true)
+        }
+        // الإيقاف بالضغط المطوّل ثانيتين، فلا يُطفأ الجرس بلمسة عابرة
+        toggle.setOnTouchListener { _, e ->
+            if (on) when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> { ui.removeCallbacks(holdStop); ui.postDelayed(holdStop, 2000L); say(getString(R.string.bell_holding)) }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> ui.removeCallbacks(holdStop)
+            }
+            false
+        }
         add(col, toggle, Cfg.dp(this, 52), 16)
+        // رسالة داخل الشاشة بدل Toast الذي يغطي الأزرار
+        msgT = tv(15f, Cfg.INK, true)
+        msgT.background = UiKit.pill(0xFFF6EBDD.toInt(), Cfg.dp(this, 12))
+        msgT.setPadding(Cfg.dp(this, 14), Cfg.dp(this, 10), Cfg.dp(this, 14), Cfg.dp(this, 10))
+        msgT.visibility = View.GONE
+        add(col, msgT, top = 10)
         val test = btn(getString(R.string.bell_test), false)
         test.setOnClickListener { BellTone.play(2); checkVolume() }
         add(col, test, Cfg.dp(this, 48), 10)
@@ -149,7 +183,7 @@ class BellActivity : Activity() {
         add(col, hint, top = 14)
 
         val lh = tv(16f, Cfg.INK, true); lh.text = getString(R.string.bell_today); add(col, lh, top = 18)
-        listT = tv(15f, Cfg.INK); add(col, listT, top = 6)
+        listBox = LinearLayout(this); listBox.orientation = LinearLayout.VERTICAL; add(col, listBox, top = 4)
         logT = tv(13f, Cfg.MUTED); add(col, logT, top = 12)
 
         // الرمز
@@ -189,11 +223,6 @@ class BellActivity : Activity() {
         add(tokenBox, forget)
         add(col, tokenBox)
 
-        val back = tv(15f, Cfg.GREEN_800, true)
-        back.text = getString(R.string.bell_back)
-        back.setPadding(0, Cfg.dp(this, 22), 0, Cfg.dp(this, 8))
-        back.setOnClickListener { if (on) toast(getString(R.string.bell_stop_first)) else finish() }
-        add(col, back)
 
         setContentView(scroll)
         if (Build.VERSION.SDK_INT >= 30) {
@@ -312,7 +341,7 @@ class BellActivity : Activity() {
             if (n.second - r.first <= 2.0) due.add(r)
             else {
                 addLog(r.second + " · " + getString(R.string.bell_missed))
-                if (BellPlan.afterOn(this, n.first, r.first)) BellReport.queue(this, n.first, BellPlan.hm(r.first), false)
+                if (BellPlan.afterOn(this, n.first, r.first)) { BellPlan.markMissed(this, k); BellReport.queue(this, n.first, BellPlan.hm(r.first), false) }
             }
         }
         lastMin = n.second
@@ -329,7 +358,7 @@ class BellActivity : Activity() {
 
     // ---------------------------------------------------------------- الجدول
 
-    private fun now(): Pair<String, Double> = BellPlan.now(feed, offsetMs)
+    private fun now(): Pair<String, Double> = BellPlan.now(feed, BellPlan.offset(this))
     private fun today(date: String): JSONObject? = BellPlan.day(feed, date)
 
     private fun addLog(s: String) {
@@ -351,16 +380,28 @@ class BellActivity : Activity() {
             on -> getString(R.string.bell_running) + " " + unit
             else -> getString(R.string.bell_stopped) + " " + unit
         }
-        var next = ""
-        val sb = StringBuilder()
+        // قائمة اليوم: ✓ رنّ فعلاً، ✗ فات بعد تشغيل الجرس، ◀ التالي، و«—» لما مضى قبل التشغيل أو والجرس متوقف
+        var nextM = -1
+        val rows = ArrayList<Pair<Int, String>>()
+        val sig = StringBuilder()
         for (r in BellPlan.rings(day)) {
-            if (sb.isNotEmpty()) sb.append('\n')
-            if (r.first <= n.second) sb.append("✓ ") else if (next.isEmpty()) { next = r.second; sb.append("◀ ") } else sb.append("   ")
-            sb.append(r.second)
+            val k = BellPlan.key(n.first, r.first)
+            val st = when {
+                r.first > n.second -> if (nextM < 0) { nextM = r.first; 3 } else 4
+                BellPlan.wasMissed(this, k) -> 2
+                BellPlan.wasRung(this, k) && BellPlan.afterOn(this, n.first, r.first) -> 1
+                else -> 0
+            }
+            rows.add(Pair(st, r.second)); sig.append(st).append(r.second).append(';')
         }
-        nextT.text = if (next.isNotEmpty() && on) getString(R.string.bell_next) + " " + next else ""
-        nextT.visibility = if (nextT.text.isEmpty()) View.GONE else View.VISIBLE
-        listT.text = if (sb.isEmpty()) "—" else sb.toString()
+        if (sig.toString() != listSig) { listSig = sig.toString(); drawList(rows) }
+        if (nextM >= 0) {
+            nextBig.text = RingSched.hm12(BellPlan.hm(nextM))
+            val left = Math.ceil(nextM - n.second).toInt()
+            nextT.text = getString(R.string.bell_next) + " " + inWords(left)
+            nextBig.alpha = if (on) 1f else 0.4f
+            nextBig.visibility = View.VISIBLE; nextT.visibility = View.VISIBLE
+        } else { nextBig.visibility = View.GONE; nextT.visibility = View.GONE }
         val stale = if (f != null && System.currentTimeMillis() - lastOkAt > 10 * 60_000L)
             (if (lastOkAt > 0) getString(R.string.bell_offline_cache_at, SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.ROOT).format(java.util.Date(lastOkAt))) else getString(R.string.bell_offline_cache)) else ""
         val lg = StringBuilder()
@@ -369,9 +410,40 @@ class BellActivity : Activity() {
         toggle.text = getString(if (on) R.string.bell_stop else R.string.bell_start)
     }
 
+    /** «بعد 12 دقيقة»، «بعد ساعة و5 دقائق» بأرقام 0–9 */
+    private fun inWords(min: Int): String {
+        if (min <= 1) return getString(R.string.bell_in_now)
+        val h = min / 60; val m = min % 60
+        val hs = if (h == 0) "" else if (h == 1) getString(R.string.bell_hour) else if (h == 2) getString(R.string.bell_2hours)
+            else h.toString() + " " + getString(if (h <= 10) R.string.bell_hours else R.string.bell_hour)
+        val ms = if (m == 0) "" else if (m == 1) getString(R.string.bell_minute) else if (m == 2) getString(R.string.bell_2minutes)
+            else m.toString() + " " + getString(if (m <= 10) R.string.bell_minutes_pl else R.string.bell_minute)
+        return getString(R.string.bell_in) + " " + (if (hs.isNotEmpty() && ms.isNotEmpty()) "$hs و$ms" else hs + ms)
+    }
+
+    private fun drawList(rows: List<Pair<Int, String>>) {
+        listBox.removeAllViews()
+        if (rows.isEmpty()) { val t = tv(15f, Cfg.MUTED); t.text = "—"; listBox.addView(t); return }
+        for (r in rows) {
+            val t = tv(16f, Cfg.INK, r.first == 3)
+            t.minHeight = Cfg.dp(this, 48)
+            t.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            val (mark, color) = when (r.first) {
+                1 -> Pair("✓ " + getString(R.string.bell_st_rung), Cfg.GREEN_800)
+                2 -> Pair("✗ " + getString(R.string.bell_st_missed), 0xFFB23A22.toInt())
+                3 -> Pair("◀ " + getString(R.string.bell_st_next), Cfg.GREEN_800)
+                4 -> Pair("", Cfg.INK)
+                else -> Pair("—", Cfg.MUTED)
+            }
+            t.setTextColor(color)
+            t.text = if (mark.isEmpty()) r.second else r.second + "   " + mark
+            listBox.addView(t, LinearLayout.LayoutParams(-1, -2))
+        }
+    }
+
     private fun loadCache() {
         val s = prefs.getString("feed", null) ?: return
-        try { feed = JSONObject(s); offsetMs = prefs.getLong("offset", 0L); lastOkAt = prefs.getLong("ok_at", 0L) } catch (e: Exception) { feed = null }
+        try { feed = JSONObject(s); lastOkAt = prefs.getLong("ok_at", 0L) } catch (e: Exception) { feed = null }
     }
 
     private fun fetch() {
@@ -384,6 +456,7 @@ class BellActivity : Activity() {
             var code = 0
             var body: String? = null
             val sent = System.currentTimeMillis()
+            val sentEl = android.os.SystemClock.elapsedRealtime()
             try {
                 val c = URL(Cfg.BELL_FEED + "?days=7").openConnection() as HttpURLConnection
                 c.connectTimeout = 20000; c.readTimeout = 20000
@@ -397,11 +470,12 @@ class BellActivity : Activity() {
                 c.disconnect()
             } catch (e: Exception) { code = -1 }
             val got = System.currentTimeMillis()
-            runOnUiThread { fetched(code, body, (sent + got) / 2) }
+            val gotEl = android.os.SystemClock.elapsedRealtime()
+            runOnUiThread { fetched(code, body, (sent + got) / 2, (sentEl + gotEl) / 2) }
         }.start()
     }
 
-    private fun fetched(code: Int, body: String?, mid: Long) {
+    private fun fetched(code: Int, body: String?, mid: Long, midEl: Long) {
         fetching = false
         if (isFinishing) return
         if (code == 200 && body != null) {
@@ -411,12 +485,12 @@ class BellActivity : Activity() {
                 if (j.optBoolean("ok") && d != null) {
                     val st = d.optString("server_time")
                     val t = try { SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.ROOT).parse(st)?.time } catch (e: Exception) { null }
-                    offsetMs = if (t != null) t - mid else 0L
+                    BellPlan.saveClock(this, t, mid, midEl)
                     feed = d
                     fetchedAt = System.currentTimeMillis()
                     lastOkAt = fetchedAt
                     rejects = 0
-                    prefs.edit().putString("feed", d.toString()).putLong("offset", offsetMs).putLong("ok_at", lastOkAt).apply()
+                    prefs.edit().putString("feed", d.toString()).putLong("ok_at", lastOkAt).apply()
                     if (on) { acquireCpu(); BellPlan.schedule(this) }
                 }
             } catch (e: Exception) {}
@@ -441,7 +515,15 @@ class BellActivity : Activity() {
         render()
     }
 
-    private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
+    private fun toast(s: String) = say(s)
+
+    /** رسالة داخل الشاشة تختفي بعد 6 ثوانٍ */
+    private fun say(s: String) {
+        msgT.text = s
+        msgT.visibility = View.VISIBLE
+        ui.removeCallbacks(hideMsg)
+        ui.postDelayed(hideMsg, 6000L)
+    }
 
     private fun handleBack() {
         // الجرس يعمل: تبقى الشاشة في المقدّمة، ولا خروج إلا بـ «أوقف الجرس»

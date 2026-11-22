@@ -29,7 +29,32 @@ object BellPlan {
         return try { JSONObject(s) } catch (e: Exception) { null }
     }
 
-    fun offset(c: Context): Long = prefs(c).getLong("offset", 0L)
+    /**
+     * فرق ساعة الخادم عن ساعة الهاتف. يُحسب من مرساة على الساعة الرتيبة (elapsedRealtime) منذ آخر تحميل ناجح، فلا يفسد إن
+     * غُيّرت ساعة الهاتف بعده (ضبط تلقائي أو يدوي، والجدول من المحفوظ بلا إنترنت) — كان الفرق المحفوظ ثابتاً فيُخطئ الوقت بقدر
+     * التغيير حتى التحميل التالي. بعد إعادة تشغيل الهاتف (عدّاد الإقلاع تغيّر) يُستعمل الفرق المحفوظ.
+     */
+    fun offset(c: Context): Long {
+        val p = prefs(c)
+        val el0 = p.getLong("srv_el", -1L)
+        if (el0 >= 0 && p.getInt("srv_boot", -2) == bootCount(c)) {
+            val el = android.os.SystemClock.elapsedRealtime()
+            if (el >= el0) return p.getLong("srv_ms", 0L) + (el - el0) - System.currentTimeMillis()
+        }
+        return p.getLong("offset", 0L)
+    }
+
+    private fun bootCount(c: Context): Int = try {
+        android.provider.Settings.Global.getInt(c.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
+    } catch (e: Exception) { -1 }
+
+    /** يحفظ ساعة الخادم عند منتصف الطلب: serverMs بالمللي، وmidWall/midEl منتصف الطلب بساعة الهاتف والساعة الرتيبة */
+    fun saveClock(c: Context, serverMs: Long?, midWall: Long, midEl: Long) {
+        val e = prefs(c).edit()
+        if (serverMs == null) e.putLong("offset", 0L).remove("srv_el")
+        else e.putLong("offset", serverMs - midWall).putLong("srv_ms", serverMs).putLong("srv_el", midEl).putInt("srv_boot", bootCount(c))
+        e.apply()
+    }
 
     private fun tz(feed: JSONObject?): TimeZone {
         val id = feed?.optString("tz") ?: ""
@@ -80,6 +105,18 @@ object BellPlan {
     fun key(date: String, m: Int) = date + "|" + hm(m)
 
     fun wasRung(c: Context, key: String): Boolean = prefs(c).getStringSet("rung", null)?.contains(key) == true
+
+    fun wasMissed(c: Context, key: String): Boolean = prefs(c).getStringSet("missed", null)?.contains(key) == true
+
+    /** موعد فات ولم يرنّ (بعد تشغيل الجرس): لعرض «✗ فات» في قائمة اليوم */
+    fun markMissed(c: Context, key: String) {
+        val date = UiKit.splitOn(key, '|')[0]
+        val keep = HashSet<String>()
+        val old = prefs(c).getStringSet("missed", null)
+        if (old != null) for (k in old) if (k.startsWith("$date|")) keep.add(k)
+        keep.add(key)
+        prefs(c).edit().putStringSet("missed", keep).apply()
+    }
 
     fun markRung(c: Context, key: String) {
         val date = UiKit.splitOn(key, '|')[0]
@@ -214,7 +251,10 @@ class BellAlarmReceiver : BroadcastReceiver() {
                     Handler(Looper.getMainLooper()).postDelayed({ BellTone.play(2); BellReport.queue(c, day, hm, true) }, at)
                     delay = at + 2500L
                     i++
-                } else if (BellPlan.afterOn(c, n.first, r.first) && BellPlan.afterChecked(c, n.first, r.first)) BellReport.queue(c, n.first, hm, false)
+                } else if (BellPlan.afterOn(c, n.first, r.first) && BellPlan.afterChecked(c, n.first, r.first)) {
+                    BellPlan.markMissed(c, k)
+                    BellReport.queue(c, n.first, hm, false)
+                }
             }
             BellPlan.setChecked(c, n.first, n.second)
             BellPlan.schedule(c)

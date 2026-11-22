@@ -7,5 +7,7 @@
     <color name="ibh_orange">#E8602C</color>
     <color name="ibh_tint">#EEF3EF</color>
     <color name="ibh_line">#D9E3DC</color>
+    <color name="ibh_red">#B23A22</color>
+    <color name="ibh_amber">#9A5F06</color>
     <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

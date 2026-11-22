@@ -15,6 +15,8 @@ object Cfg {
     const val BELL_RING = "$ORIGIN/api/bell/ring"
     /** ملخص أداة الإدارة على الشاشة الرئيسية (GET، Authorization: Bearer) */
     const val WIDGET_FEED = "$ORIGIN/api/widget/admin"
+    /** تنبيهات الدوام الشخصية (GET، Authorization: Bearer) */
+    const val RINGS_FEED = "$ORIGIN/api/me/rings"
 
     const val GREEN_800 = 0xFF173E25.toInt()
     const val CREAM = 0xFFFFFDF8.toInt()

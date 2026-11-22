@@ -11,4 +11,15 @@
             android:targetPackage="com.nafahatsy.ibh"
             android:targetClass="com.nafahatsy.ibh.MainActivity" />
     </shortcut>
+    <shortcut
+        android:shortcutId="alerts"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/al_short"
+        android:shortcutLongLabel="@string/al_title">
+        <intent
+            android:action="com.nafahatsy.ibh.ALERTS"
+            android:targetPackage="com.nafahatsy.ibh"
+            android:targetClass="com.nafahatsy.ibh.MainActivity" />
+    </shortcut>
 </shortcuts>

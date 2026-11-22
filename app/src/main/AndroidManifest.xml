@@ -11,6 +11,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- تنبيهات الدوام (1.2.0): الإشعار نفسه (أندرويد 13+ يُطلب بشرح مرة واحدة)، وإعادة المنبّهات بعد إعادة تشغيل الهاتف -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
@@ -70,6 +73,26 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/admin_widget_info" />
+        </receiver>
+
+        <!-- إعدادات «تنبيهات الدوام» (Rings.kt): من الاختصار عبر MainActivity أو من المنصة -->
+        <activity
+            android:name=".AlertsActivity"
+            android:exported="false"
+            android:label="@string/al_title"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation" />
+
+        <!-- منبّه التنبيه التالي والجلب اليومي لتنبيهات الدوام: غير مُصدَّر، ورموز طلبه غير رموز هاتف الجرس -->
+        <receiver android:name=".RingAlarmReceiver" android:exported="false" />
+
+        <!-- إعادة التشغيل وتحديث التطبيق وتغيير الوقت/المنطقة: تُعاد منبّهات الدوام وهاتف الجرس. مُصدَّر لأن النظام يرسلها -->
+        <receiver android:name=".SystemEventsReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
         </receiver>
 
         <!-- ضغطة «حدّث» في رأس الأداة: غير مُصدَّر -->

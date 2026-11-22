@@ -20,7 +20,7 @@ function env(origin) {
     __ibhN: (() => { const g = s => { if (s !== SECRET) { calls.push(["REJECTED"]); return false; } return true; };
       return { tokenSet: (s, t) => g(s) && calls.push(["set", t]), tokenClear: s => g(s) && calls.push(["clear"]), print: (s, t) => g(s) && calls.push(["print", t]),
         keepScreenOn: (s, b) => g(s) && calls.push(["keep", b]), saveFile: (s, b, n, m) => g(s) && (calls.push(["save", b, n, m]), true),
-        openBell: s => g(s) && calls.push(["bell"]), setBellToken: (s, t) => g(s) && (calls.push(["bt", t]), true), appVersion: () => "1.0.1" }; })(),
+        openBell: s => g(s) && calls.push(["bell"]), openAlerts: s => g(s) && calls.push(["alerts"]), setBellToken: (s, t) => g(s) && (calls.push(["bt", t]), true), appVersion: () => "1.0.1" }; })(),
     fetch: (input, init) => { sent.push([input, init]); return Promise.resolve({ ok: true }); },
     dispatchEvent: e => calls.push(["event", e.type]),
   };
@@ -58,6 +58,7 @@ function env(origin) {
   assert.strictEqual(api.saveFile("QUJD", "a.pdf", "application/pdf"), true);
   assert.deepStrictEqual(e.calls.shift(), ["save", "QUJD", "a.pdf", "application/pdf"]);
   api.openBell(); assert.deepStrictEqual(e.calls.shift(), ["bell"]);
+  api.openAlerts(); assert.deepStrictEqual(e.calls.shift(), ["alerts"]);
   assert.strictEqual(api.setBellToken("bt_x"), true); assert.deepStrictEqual(e.calls.shift(), ["bt", "bt_x"]);
   assert.strictEqual(api.appVersion(), "1.0.1");
   for (const k of Object.keys(api)) assert.ok(!String(api[k]).includes(SECRET));

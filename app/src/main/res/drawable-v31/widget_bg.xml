@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- أندرويد 12+: زاوية الأداة بنصف قطر النظام -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/ibh_cream" />
+    <stroke android:width="1dp" android:color="@color/ibh_line" />
+    <corners android:radius="@android:dimen/system_app_widget_background_radius" />
+</shape>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- أداة الإدارة: الرأس (النطاق + «آخر تحديث») يحدّث بالضغط، ثم العدّادات أو رسالة الحالة، ثم التذكيرات في الحجم الأكبر -->
+<!-- أداة الإدارة (AdminWidget.kt): رأس 32dp (النطاق، الوقت، شارة التذكيرات، ↻)، ثم سطر الحالة أو السطر الأهم أو المربعات
+     بارتفاع ثابت، ثم التذكيرات. الحاويات wrap_content فلا تتمدد المربعات عمودياً -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
@@ -7,18 +8,16 @@
     android:orientation="vertical"
     android:layoutDirection="rtl"
     android:background="@drawable/widget_bg"
-    android:padding="8dp">
+    android:clipToOutline="true"
+    android:padding="10dp">
 
     <LinearLayout
         android:id="@+id/w_head"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="32dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:minHeight="32dp"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp"
-        android:paddingBottom="4dp">
+        android:paddingStart="4dp">
 
         <TextView
             android:id="@+id/w_scope"
@@ -27,7 +26,7 @@
             android:layout_weight="1"
             android:text="@string/w_title"
             android:textColor="@color/ibh_green"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:maxLines="1"
             android:ellipsize="end"
@@ -40,35 +39,90 @@
             android:layout_height="wrap_content"
             android:paddingStart="6dp"
             android:textColor="@color/ibh_muted"
-            android:textSize="11sp"
+            android:textSize="12sp"
             android:maxLines="1"
+            android:visibility="gone"
             android:textDirection="rtl" />
+
+        <TextView
+            android:id="@+id/w_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="20dp"
+            android:minWidth="20dp"
+            android:layout_marginStart="6dp"
+            android:gravity="center"
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp"
+            android:background="@drawable/widget_badge"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/w_refresh"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:gravity="center"
+            android:text="↻"
+            android:contentDescription="@string/w_refresh"
+            android:textColor="@color/ibh_green"
+            android:textSize="18sp" />
     </LinearLayout>
 
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginBottom="4dp"
-        android:background="@color/ibh_line" />
-
-    <TextView
-        android:id="@+id/w_msg"
+    <LinearLayout
+        android:id="@+id/w_msgrow"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:orientation="horizontal"
         android:gravity="center"
-        android:padding="6dp"
-        android:text="@string/w_login"
-        android:textColor="@color/ibh_green"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/w_logo"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/splash_institute"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/w_msg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/w_login"
+            android:textColor="@color/ibh_green"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:gravity="start"
+            android:textDirection="rtl" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/w_hero"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="36dp"
+        android:layout_marginTop="4dp"
+        android:gravity="center_vertical|start"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:background="@drawable/widget_cell"
         android:textSize="15sp"
+        android:textStyle="bold"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:textDirection="rtl"
-        android:lineSpacingMultiplier="1.2" />
+        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/w_grid"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
         android:orientation="vertical"
         android:visibility="gone" />
 
@@ -76,7 +130,7 @@
         android:id="@+id/w_rem"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
         android:orientation="vertical"
         android:visibility="gone" />
 </LinearLayout>

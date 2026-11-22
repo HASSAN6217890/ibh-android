@@ -3,7 +3,7 @@
    2) ينسخ رمز الجلسة (sessionStorage «ibh_t») إلى التخزين الأصلي المشفّر عند الدخول، ويمسحه عند الخروج أو انتهاء الجلسة.
    3) window.print: الطباعة الأصلية (WebView لا يطبع وحده)، مع beforeprint ثم afterprint عند انتهاء نافذة الطباعة.
    4) navigator.wakeLock (غير موجود في WebView): بديل يُبقي الشاشة مضاءة أصلياً ما دام قفل واحد فعّالاً (صفحة الجرس ووضع العرض).
-   5) window.IBHNative: واجهة JS للمنصة (saveFile كما تستدعيه saveBlob، وprint، وopenBell، وsetBellToken، وappVersion).
+   5) window.IBHNative: واجهة JS للمنصة (saveFile كما تستدعيه saveBlob، وprint، وopenBell، وopenAlerts، وsetBellToken، وappVersion).
    الجسر الأصلي الحقيقي اسمه __ibhN، وكل دالة فيه تغيّر شيئاً تشترط سرّاً عشوائياً يولّده التطبيق عند كل تشغيل (S أدناه):
    يُكتب في نص هذا الملف قبل حقنه، ويبقى داخل هذه الدالة لا على window، فلا يستطيع سكربت آخر استدعاء الجسر مباشرة.
    مكتوب بصيغة قديمة (ES5) فيعمل على أي WebView، ولا يُحقن مرتين. */
@@ -25,6 +25,7 @@
       saveFile: function (b64, name, mime) { return R.saveFile(S, String(b64), String(name || ""), String(mime || "")); },
       print: function (t) { window.print(); },
       openBell: function () { return R.openBell(S); },
+      openAlerts: function () { return R.openAlerts ? R.openAlerts(S) : false; },
       setBellToken: function (t) { return R.setBellToken(S, String(t || "")); },
       appVersion: function () { return R.appVersion(); }
     };

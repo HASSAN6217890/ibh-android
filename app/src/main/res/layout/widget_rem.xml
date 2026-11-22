@@ -1,17 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- سطر تذكير في الحجم الأكبر من أداة الإدارة -->
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/w_rem_t"
+<!-- سطر تذكير 28dp: نقطة ملوّنة 6dp ونص 12sp -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_rem_row"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="28dp"
     android:layout_marginTop="2dp"
-    android:minHeight="28dp"
-    android:gravity="center_vertical|start"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
     android:paddingStart="8dp"
     android:paddingEnd="8dp"
     android:background="@drawable/widget_cell"
-    android:textColor="@color/ibh_ink"
-    android:textSize="12sp"
-    android:maxLines="1"
-    android:ellipsize="end"
-    android:textDirection="rtl" />
+    android:layoutDirection="rtl">
+
+    <TextView
+        android:id="@+id/w_dot"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="6dp"
+        android:text="●"
+        android:textSize="7sp"
+        android:importantForAccessibility="no" />
+
+    <TextView
+        android:id="@+id/w_rem_t"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:gravity="start"
+        android:textColor="@color/ibh_ink"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textDirection="rtl" />
+</LinearLayout>

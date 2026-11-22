@@ -64,6 +64,7 @@ class NativeBridge(private val a: MainActivity) {
         val changed = t != a.store.get(SecureStore.SESSION)
         a.store.put(SecureStore.SESSION, t)
         if (changed) try { WidgetData.sessionChanged(a) } catch (e: Exception) {}
+        if (changed) try { RingSched.sessionChanged(a) } catch (e: Exception) {}
     }
 
     /** الخروج أو انتهاء الجلسة أو صفحة بلا جلسة: يُمسح الرمز المحفوظ */
@@ -73,6 +74,7 @@ class NativeBridge(private val a: MainActivity) {
         val had = a.store.get(SecureStore.SESSION) != null
         a.store.put(SecureStore.SESSION, null)
         if (had) try { WidgetData.loggedOut(a) } catch (e: Exception) {}
+        if (had) try { RingSched.clear(a) } catch (e: Exception) {}
     }
 
     /** فتح وضع «هاتف الجرس» (لزر تضيفه المنصة لاحقاً في شاشة الدخول أو صفحة الجرس) */
@@ -95,6 +97,13 @@ class NativeBridge(private val a: MainActivity) {
         BellReport.purgeOthers(a)
         a.runOnUiThread { a.openBell() }
         return true
+    }
+
+    /** فتح إعدادات «تنبيهات الدوام» (لزر تضيفه المنصة في صفحة الحساب أو اليوم) */
+    @JavascriptInterface
+    fun openAlerts(s: String?) {
+        if (!ok(s)) return
+        a.runOnUiThread { a.openAlerts() }
     }
 
     /** للقراءة فقط: لا يغيّر شيئاً، فلا يشترط السر */
