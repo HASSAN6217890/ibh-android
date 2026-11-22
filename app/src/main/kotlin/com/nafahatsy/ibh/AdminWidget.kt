@@ -315,7 +315,7 @@ object WidgetData {
                 val txt = num(b.optInt("n", 0)) + " " + clip(b.optString("label"), 24) + (if (others > 1) " · " + c.getString(R.string.w_more, (others - 1).toString()) else "")
                 rv.setTextViewText(R.id.w_hero, txt)
                 rv.setTextColor(R.id.w_hero, levelColor(level(b)))
-                rv.setOnClickPendingIntent(R.id.w_hero, openIntent(c, 100, b.optString("route")))
+                rv.setOnClickPendingIntent(R.id.w_hero, openIntent(c, 150, b.optString("route")))
                 rv.setViewVisibility(R.id.w_hero, View.VISIBLE)
             }
             if (remList.isNotEmpty()) badge(rv, c, remList)
@@ -359,6 +359,22 @@ object WidgetData {
         return rv
     }
 
+    /** «تذكير آخر» / «تذكيران آخران» / «5 تذكيرات أخرى» / «12 تذكيراً آخر» */
+    private fun remMore(c: Context, n: Int): String = when {
+        n == 1 -> c.getString(R.string.w_rem_more_1)
+        n == 2 -> c.getString(R.string.w_rem_more_2)
+        n in 3..10 -> n.toString() + " " + c.getString(R.string.w_rem_more_pl)
+        else -> n.toString() + " " + c.getString(R.string.w_rem_more_many)
+    }
+
+    /** وصف الشارة لقارئ الشاشة: «تذكير واحد» / «تذكيران» / «5 تذكيرات» / «12 تذكيراً» */
+    private fun remCount(c: Context, n: Int): String = when {
+        n == 1 -> c.getString(R.string.w_rem_n_1)
+        n == 2 -> c.getString(R.string.w_rem_n_2)
+        n in 3..10 -> n.toString() + " " + c.getString(R.string.w_rem_n_pl)
+        else -> n.toString() + " " + c.getString(R.string.w_rem_n_many)
+    }
+
     private fun time(rv: RemoteViews, s: String, color: Int) {
         rv.setTextViewText(R.id.w_time, s)
         rv.setTextColor(R.id.w_time, color)
@@ -376,7 +392,7 @@ object WidgetData {
     /** شارة حمراء بعدد التذكيرات في الرأس، تفتح مسار أولها */
     private fun badge(rv: RemoteViews, c: Context, rems: List<JSONObject>) {
         rv.setTextViewText(R.id.w_badge, num(rems.size))
-        rv.setContentDescription(R.id.w_badge, c.getString(R.string.w_badge_cd, rems.size.toString()))
+        rv.setContentDescription(R.id.w_badge, remCount(c, rems.size))
         rv.setOnClickPendingIntent(R.id.w_badge, openIntent(c, 200, rems[0].optString("route")))
         rv.setViewVisibility(R.id.w_badge, View.VISIBLE)
     }
@@ -395,7 +411,7 @@ object WidgetData {
         }
         if (truncated) {
             val line = RemoteViews(c.packageName, R.layout.widget_rem)
-            line.setTextViewText(R.id.w_rem_t, c.getString(R.string.w_more_rem, (rems.size - show).toString()) + " ›")
+            line.setTextViewText(R.id.w_rem_t, remMore(c, rems.size - show) + " ›")
             line.setTextColor(R.id.w_rem_t, Cfg.GREEN_800)
             line.setViewVisibility(R.id.w_dot, View.INVISIBLE)
             line.setOnClickPendingIntent(R.id.w_rem_row, openIntent(c, 209, "#day"))

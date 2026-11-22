@@ -57,6 +57,7 @@
     <string name="bell_stop_first">أوقف الجرس أولاً: اضغط مطوّلاً على «أوقف الجرس» ثانيتين.</string>
     <string name="bell_hold_to_stop">لإيقاف الجرس اضغط مطوّلاً على الزر ثانيتين.</string>
     <string name="bell_holding">واصل الضغط ثانيتين لإيقاف الجرس…</string>
+    <string name="bell_stop_confirm">إيقاف الجرس على هذا الهاتف؟ لن يرنّ حتى تشغّله من جديد.</string>
     <string name="bell_stopped_msg">أُوقف الجرس على هذا الهاتف.</string>
     <string name="bell_st_rung">رنّ</string>
     <string name="bell_st_missed">فات</string>
@@ -87,8 +88,14 @@
     <string name="w_all_clear">لا شيء بانتظارك</string>
     <string name="w_refresh">حدّث الآن</string>
     <string name="w_more">+%1$s أخرى</string>
-    <string name="w_more_rem">+%1$s تذكيرات أخرى</string>
-    <string name="w_badge_cd">%1$s تذكيرات</string>
+    <string name="w_rem_more_1">تذكير آخر</string>
+    <string name="w_rem_more_2">تذكيران آخران</string>
+    <string name="w_rem_more_pl">تذكيرات أخرى</string>
+    <string name="w_rem_more_many">تذكيراً آخر</string>
+    <string name="w_rem_n_1">تذكير واحد</string>
+    <string name="w_rem_n_2">تذكيران</string>
+    <string name="w_rem_n_pl">تذكيرات</string>
+    <string name="w_rem_n_many">تذكيراً</string>
     <string name="w_prev_time">آخر تحديث 10:30</string>
     <string name="w_prev_att">شعب بلا تفقّد</string>
     <string name="w_prev_lessons">حصص بلا تثبيت</string>
@@ -115,6 +122,18 @@
     <string name="al_perm_t">تنبيهات دوامك</string>
     <string name="al_perm_msg">يستطيع التطبيق تنبيهك عند بداية حصصك ونهايتها والاستراحة، ولو كان الهاتف مقفلاً. يحتاج ذلك إلى السماح بالإشعارات. ويمكنك تغيير ذلك لاحقاً من «تنبيهات الدوام» بالضغط المطوّل على أيقونة التطبيق.</string>
     <string name="al_perm_yes">اسمح بالتنبيهات</string>
+    <string name="al_public_title">تنبيه دوام</string>
+    <string name="al_today">اليوم</string>
+    <string name="al_tomorrow">غداً</string>
+    <string-array name="al_days">
+        <item>الأحد</item>
+        <item>الاثنين</item>
+        <item>الثلاثاء</item>
+        <item>الأربعاء</item>
+        <item>الخميس</item>
+        <item>الجمعة</item>
+        <item>السبت</item>
+    </string-array>
     <string name="al_channel">تنبيهات الدوام</string>
     <string name="al_channel_vibe">تنبيهات الدوام (اهتزاز فقط)</string>
     <string name="al_channel_desc">بداية الحصص ونهايتها والاستراحة من جدولك في المعهد</string>

@@ -168,8 +168,18 @@ class AlertsActivity : Activity() {
 
     private fun dayWord(date: String): String {
         val c = java.util.Calendar.getInstance()
-        val today = String.format(java.util.Locale.ROOT, "%04d-%02d-%02d", c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
-        return if (date.isEmpty() || date == today) "" else " (" + date + ")"
+        val f = { x: java.util.Calendar -> String.format(java.util.Locale.ROOT, "%04d-%02d-%02d", x.get(java.util.Calendar.YEAR), x.get(java.util.Calendar.MONTH) + 1, x.get(java.util.Calendar.DAY_OF_MONTH)) }
+        if (date.isEmpty() || date == f(c)) return " · " + getString(R.string.al_today)
+        c.add(java.util.Calendar.DAY_OF_MONTH, 1)
+        if (date == f(c)) return " · " + getString(R.string.al_tomorrow)
+        // يوم آخر من الأسبوع: اسمه
+        val p = UiKit.splitOn(date, '-')
+        if (p.size != 3) return ""
+        val d = java.util.Calendar.getInstance()
+        d.clear()
+        d.set(p[0].toIntOrNull() ?: return "", (p[1].toIntOrNull() ?: return "") - 1, p[2].toIntOrNull() ?: return "")
+        val names = resources.getStringArray(R.array.al_days)
+        return " · " + names[d.get(java.util.Calendar.DAY_OF_WEEK) - 1]
     }
 
     private fun setEnabledDeep(v: View, on: Boolean) {

@@ -30,7 +30,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - المصدر: GET /api/me/rings?days=7 بجلسة التطبيق (Bearer + X-IBH-App: 1). القائمة تُحفظ في تفضيلات خاصة (ibh_rings).
  * - يُطلب عند فتح التطبيق (كل 10 دقائق على الأكثر)، وبعد الدخول أو تغيّر الحساب، ومرة يومياً بمنبّه غير دقيق،
  *   وبعد إعادة تشغيل الهاتف أو تحديث التطبيق أو تغيير الوقت/المنطقة. إن لم تتغيّر البصمة (hash) لا يُعاد شيء.
- * - منبّه دقيق واحد للتنبيه التالي فقط (setExactAndAllowWhileIdle؛ وبلا إذن الدقة منبّه تقريبي). عند وقته: إشعار، ثم التالي.
+ * - منبّه واحد للتنبيه التالي فقط بـ setAlarmClock (لا يحدّه وضع السكون؛ setExactAndAllowWhileIdle محدود بمرة كل 9 دقائق تقريباً
+ *   فيتأخر تنبيه «قبل النهاية بدقيقة» المتبوع بتنبيه بعد دقيقة). وبلا إذن الدقة منبّه تقريبي. عند وقته: إشعار، ثم التالي.
  * - رموز الطلب (10–12) ومستقبِل منفصل، فلا يمسّ منبّهات هاتف الجرس (BellPlan: 1 و2 على BellAlarmReceiver).
  * - الخروج أو 401/403: تُمسح القائمة وتُلغى المنبّهات.
  */
@@ -40,11 +41,12 @@ object RingSched {
     private const val RC_NEXT = 10
     private const val RC_DAILY = 11
     private const val RC_OPEN = 12
+    private const val RC_SHOW = 13
     private const val NOTIF_ID = 7001
     const val ACTION_FIRE = "com.nafahatsy.ibh.RING_FIRE"
     const val ACTION_DAILY = "com.nafahatsy.ibh.RING_DAILY"
-    /** موعد فات بأكثر من 3 دقائق (الهاتف كان مطفأً) لا يُنبَّه به متأخراً */
-    private const val LATE_MS = 3 * 60_000L
+    /** موعد فات بأكثر من 10 دقائق (الهاتف كان مطفأً) لا يُنبَّه به متأخراً؛ وما دونها يظهر متأخراً ولا يضيع */
+    private const val LATE_MS = 10 * 60_000L
 
     private val busy = AtomicBoolean(false)
     private val main = Handler(Looper.getMainLooper())
@@ -62,7 +64,23 @@ object RingSched {
         if (v) { scheduleDaily(c); scheduleNext(c); fetch(c, true, null) } else { cancelNext(c); cancelDaily(c) }
     }
     fun setVibrateOnly(c: Context, v: Boolean) { prefs(c).edit().putBoolean("vibe", v).apply() }
-    fun setEarlyEnd(c: Context, v: Boolean) { prefs(c).edit().putBoolean("early", v).apply(); prefs(c).edit().remove("last").apply(); scheduleNext(c) }
+    /** لا يُمسح سجل ما نُبِّه به: البند الذي نُبِّه به لا يتكرر بتغيير التوقيت (fired) */
+    fun setEarlyEnd(c: Context, v: Boolean) { prefs(c).edit().putBoolean("early", v).apply(); scheduleNext(c) }
+
+    private fun itemKey(it: JSONObject) = it.optString("_date") + "|" + it.optString("at") + "|" + it.optString("kind")
+
+    private fun wasFired(c: Context, it: JSONObject) = prefs(c).getStringSet("fired", null)?.contains(itemKey(it)) == true
+
+    private fun markFired(c: Context, keys: List<String>) {
+        if (keys.isEmpty()) return
+        val keep = HashSet<String>()
+        val old = prefs(c).getStringSet("fired", null)
+        val cal = Calendar.getInstance(); cal.add(Calendar.DAY_OF_MONTH, -1)
+        val minDate = String.format(Locale.ROOT, "%04d-%02d-%02d", cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH))
+        if (old != null) for (k in old) if (UiKit.splitOn(k, '|')[0] >= minDate) keep.add(k)
+        keep.addAll(keys)
+        prefs(c).edit().putStringSet("fired", keep).apply()
+    }
 
     fun notificationsAllowed(c: Context): Boolean {
         if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) return false
@@ -91,7 +109,7 @@ object RingSched {
     fun clear(c: Context) {
         cancelNext(c)
         cancelDaily(c)
-        prefs(c).edit().remove("days").remove("tz").remove("hash").remove("last").remove("try_at").apply()
+        prefs(c).edit().remove("days").remove("tz").remove("hash").remove("last").remove("fired").remove("try_at").apply()
     }
 
     /**
@@ -201,7 +219,7 @@ object RingSched {
     fun nextItem(c: Context): Pair<Long, JSONObject>? {
         val now = System.currentTimeMillis()
         val last = prefs(c).getLong("last", 0L)
-        for (x in all(c)) if (x.first > now && x.first > last) return x
+        for (x in all(c)) if (x.first > now && x.first > last && !wasFired(c, x.second)) return x
         return null
     }
 
@@ -229,8 +247,10 @@ object RingSched {
         val op = pi(c, RC_NEXT, ACTION_FIRE)
         val a = am(c)
         try {
-            if (Build.VERSION.SDK_INT < 31 || a.canScheduleExactAlarms()) a.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nx.first, op)
-            else a.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nx.first, op)
+            if (Build.VERSION.SDK_INT < 31 || a.canScheduleExactAlarms()) {
+                val show = PendingIntent.getActivity(c, RC_SHOW, Intent(c, AlertsActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                a.setAlarmClock(AlarmManager.AlarmClockInfo(nx.first, show), op)
+            } else a.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nx.first, op)
         } catch (e: Exception) {
             try { a.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nx.first, op) } catch (x: Exception) {}
         }
@@ -248,6 +268,9 @@ object RingSched {
 
     /** بعد إعادة التشغيل أو التحديث أو تغيير الوقت: المنبّهات كلها من جديد */
     fun resetAlarms(c: Context) {
+        // رُجعت الساعة إلى الوراء: «آخر ما نُبِّه به» لا يبقى في المستقبل فيحجب ما بعده
+        val now = System.currentTimeMillis()
+        if (prefs(c).getLong("last", 0L) > now) prefs(c).edit().putLong("last", now).apply()
         prefs(c).edit().putBoolean("daily_set", false).apply()
         scheduleDaily(c)
         scheduleNext(c)
@@ -261,13 +284,17 @@ object RingSched {
         var last = p.getLong("last", 0L)
         var shown: JSONObject? = null
         var shownAt = 0L
+        val keys = ArrayList<String>()
         for (x in all(c)) {
             if (x.first <= last) continue
             if (x.first > now + 30_000L) break
+            if (wasFired(c, x.second)) { last = x.first; continue }
             if (x.first >= now - LATE_MS) { shown = x.second; shownAt = x.first }
+            keys.add(itemKey(x.second))
             last = x.first
         }
         p.edit().putLong("last", last).apply()
+        markFired(c, keys)
         if (shown != null) notify(c, shown, shownAt)
         scheduleNext(c)
         // القائمة توشك أن تنفد (لا قادم): جلب جديد
@@ -329,7 +356,11 @@ object RingSched {
             .setAutoCancel(true)
             .setContentIntent(tap)
             .setCategory(Notification.CATEGORY_REMINDER)
-            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+        // على شاشة القفل: «تنبيه دوام» والوقت فقط، بلا اسم الفرع ولا نص الحصة
+        val pub = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, if (vibe) CH_VIBE else CH_SOUND) else Notification.Builder(c)
+        pub.setSmallIcon(R.drawable.ic_stat_ibh).setContentTitle(c.getString(R.string.al_public_title)).setContentText(time).setColor(Cfg.GREEN_800)
+        b.setPublicVersion(pub.build())
         if (Build.VERSION.SDK_INT >= 26) b.setTimeoutAfter(30 * 60_000L)
         else {
             b.setPriority(Notification.PRIORITY_HIGH)

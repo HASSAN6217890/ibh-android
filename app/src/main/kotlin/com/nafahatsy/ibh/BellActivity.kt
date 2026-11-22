@@ -173,7 +173,19 @@ class BellActivity : Activity() {
         msgT.background = UiKit.pill(0xFFF6EBDD.toInt(), Cfg.dp(this, 12))
         msgT.setPadding(Cfg.dp(this, 14), Cfg.dp(this, 10), Cfg.dp(this, 14), Cfg.dp(this, 10))
         msgT.visibility = View.GONE
+        msgT.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         add(col, msgT, top = 10)
+        // مع قارئ الشاشة (TalkBack) لا يتأتى الضغط المطوّل ثانيتين: الضغط المطوّل يطلب تأكيداً ثم يوقف الجرس
+        toggle.setOnLongClickListener {
+            val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
+            if (!on || !am.isTouchExplorationEnabled) return@setOnLongClickListener false
+            android.app.AlertDialog.Builder(this)
+                .setMessage(R.string.bell_stop_confirm)
+                .setPositiveButton(R.string.bell_stop) { _, _ -> if (on) { stop(); say(getString(R.string.bell_stopped_msg)) } }
+                .setNegativeButton(R.string.later, null)
+                .show()
+            true
+        }
         val test = btn(getString(R.string.bell_test), false)
         test.setOnClickListener { BellTone.play(2); checkVolume() }
         add(col, test, Cfg.dp(this, 48), 10)
