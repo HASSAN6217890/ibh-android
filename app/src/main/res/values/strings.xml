@@ -145,9 +145,9 @@
     <string name="tone_bowl">رنين عميق</string>
     <string name="tone_melody">لحن الأجراس</string>
     <string name="tone_system">نغمة إشعارات الهاتف</string>
-    <string name="tone_phone">نغمة من الجوال</string>
-    <string name="tone_pick_system">من نغمات الجوال…</string>
-    <string name="tone_pick_file">ملف صوتي من الجوال…</string>
+    <string name="tone_phone">نغمة من الهاتف</string>
+    <string name="tone_pick_system">من نغمات الهاتف…</string>
+    <string name="tone_pick_file">ملف صوتي من الهاتف…</string>
     <string name="tone_title_bell">نغمة الجرس</string>
     <string name="tone_title_alert">نغمة تنبيهات الدوام</string>
     <string name="tone_current">النغمة:</string>
@@ -155,7 +155,9 @@
     <string name="tone_try">جرّب</string>
     <string name="tone_save">احفظ</string>
     <string name="tone_cancel">إلغاء</string>
-    <string name="tone_file_denied">لم يُسمح للتطبيق بالاحتفاظ بهذا الملف. اختر ملفاً آخر.</string>
+    <string name="tone_saving">جارٍ حفظ النغمة…</string>
+    <string name="tone_too_large">الملف أكبر من 5 م.ب. اختر مقطعاً أقصر.</string>
+    <string name="tone_unreadable">تعذّرت قراءة هذا الملف. اختر ملفاً صوتياً محفوظاً على الهاتف.</string>
     <string name="tone_failed_bell">تعذّر تشغيل النغمة المختارة (ربما حُذف الملف)، فرنّ الجرس بالنغمة الأساسية. اختر نغمة أخرى من «غيّر النغمة».</string>
     <string name="tone_failed_alert">تعذّر تشغيل النغمة المختارة (ربما حُذف الملف)، فاستُعملت النغمة الأساسية. اختر نغمة أخرى من «غيّر النغمة».</string>
 </resources>

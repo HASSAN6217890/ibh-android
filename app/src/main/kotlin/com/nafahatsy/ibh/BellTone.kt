@@ -1,48 +1,59 @@
 package com.nafahatsy.ibh
 
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import android.media.MediaPlayer
+import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import java.io.File
 
 /**
  * أصوات الجرس وتنبيهات الدوام (التطبيق 1.3.0).
  * - خمس نغمات مدمجة تُركَّب في الذاكرة (PCM) بلا ملفات: لكل منها طابع مختلف، بصعود ناعم وخفوت طبيعي فلا تكون حادة.
- * - أو نغمة من الجوال: من منتقي نغمات النظام (منبّه/رنين/إشعار) أو أي ملف صوتي (إذن قراءة دائم من منتقي الملفات).
+ * - أو نغمة من الهاتف: تُنسخ عند اختيارها إلى ذاكرة التطبيق الخاصة (filesDir/tones/bell.* وalert.*، حتى 5 م.ب) ويُشغَّل
+ *   دائماً من النسخة المحلية، فلا يتوقف الرنين على ملف سحابي أو بطيء أو إذن يزول. ونغمة النظام التي تعذّر نسخها تُشغَّل
+ *   بتحضير غير متزامن، وإن لم تجهز خلال ثانية فالنغمة الأساسية.
  * - الجرس على مسار المنبّه (USAGE_ALARM) فيرنّ ولو كان الهاتف صامتاً، كما كان. وتنبيهات الدوام على مسار الإشعارات
- *   (USAGE_NOTIFICATION_EVENT) فتتبع الصامت و«عدم الإزعاج».
- * - المدة: النغمة المدمجة تُكرَّر بعدد الرنّات (times) كما كان؛ ونغمة الجوال تُقطع بعد 3 ثوانٍ لكل رنّة (6 ثوانٍ للرنّة العادية).
- * - إن تعذّر تشغيل نغمة الجوال (حُذف الملف أو زال الإذن): تُشغَّل النغمة الأساسية، ويُسجَّل ذلك (failed_at) لتنبيه صغير
- *   في الشاشة، ويُعاد للمستدعي fellBack لتقرير الرنّة.
- * الاختيار محفوظ في تفضيلات كل خدمة: «tone» بصيغة b:<معرّف> | r:<رابط منتقي النظام> | f:<رابط ملف> | s: (نغمة إشعارات الهاتف،
- * للتنبيهات فقط، يشغّلها النظام من قناة الإشعار)، و«tone_name» اسمها المعروض.
+ *   (USAGE_NOTIFICATION_EVENT).
+ * - المدة: النغمة المدمجة تُكرَّر بعدد الرنّات كما كان؛ ونغمة الهاتف تُقطع بعد 3 ثوانٍ لكل رنّة مع خفوت.
+ * - ثلاث خانات تشغيل مستقلة (رنّة الجرس، تنبيه الدوام، المعاينة): المعاينة لا تقطع رنّة حقيقية، والإيقاف يخص خانته.
+ * - إن تعذّر تشغيل نغمة الهاتف: النغمة الأساسية بدلها، ويُسجَّل (failed_at) لتنبيه صغير، ويُعاد fellBack لتقرير الرنّة.
+ * الاختيار في تفضيلات كل خدمة: «tone» = b:<معرّف> | l:<اسم الملف المحلي> | r:<رابط نغمة نظام لم تُنسخ> | s: (نغمة إشعارات
+ * الهاتف، للتنبيهات فقط، يشغّلها النظام من قناة الإشعار)، و«tone_name» اسمها المعروض.
  */
 object BellTone {
     const val BELL = 0
     const val ALERT = 1
+    /** خانة المعاينة («جرّب» ونافذة الاختيار) */
+    private const val PREVIEW = 2
     private const val RATE = 22050
     private const val CUSTOM_MS_PER_RING = 3000L
+    const val MAX_FILE = 5L * 1024 * 1024
 
-    /** معرّفات النغمات المدمجة بالترتيب المعروض، وأسماؤها في strings.xml */
     val BUILTIN = arrayOf("classic", "chime", "marimba", "bowl", "melody")
     val BUILTIN_NAMES = intArrayOf(R.string.tone_classic, R.string.tone_chime, R.string.tone_marimba, R.string.tone_bowl, R.string.tone_melody)
 
     class Played(val ms: Long, val fellBack: Boolean)
 
-    private val main = Handler(Looper.getMainLooper())
-    private var player: MediaPlayer? = null
-    private var track: AudioTrack? = null
+    /** معالج خاص بالنغمات: إيقاف خانة لا يمسّ مؤقتات غيرها ولا مؤقتات التطبيق */
+    private val h = Handler(Looper.getMainLooper())
+    private val players = arrayOfNulls<MediaPlayer>(3)
+    private val ringtones = arrayOfNulls<Ringtone>(3)
+    private val tracks = arrayOfNulls<AudioTrack>(3)
+    /** رقم جيل لكل خانة: المؤقتات القديمة (خفوت، إيقاف، مهلة التحضير) لا تعمل بعد إيقاف الخانة أو تشغيل جديد فيها */
+    private val gen = IntArray(3)
     private val cache = HashMap<String, ShortArray>()
 
     fun prefs(c: Context, target: Int): SharedPreferences = if (target == BELL) BellPlan.prefs(c) else RingSched.prefs(c)
+
+    fun toneDir(c: Context): File = File(c.applicationContext.filesDir, "tones")
 
     fun choice(c: Context, target: Int): String {
         val v = prefs(c, target).getString("tone", null)
@@ -56,16 +67,13 @@ object BellTone {
         return prefs(c, target).getString("tone_name", null)?.takeIf { it.isNotBlank() } ?: c.getString(R.string.tone_phone)
     }
 
-    /** يحفظ الاختيار؛ ويُفرج عن إذن الملف السابق إن لم يعد مستعملاً في الخدمة الأخرى */
+    /** يحفظ الاختيار؛ ويحذف نسخة الملف المحلية القديمة لهذه الخدمة إن تغيّرت */
     fun setChoice(c: Context, target: Int, value: String, name: String?) {
         val old = choice(c, target)
         prefs(c, target).edit().putString("tone", value).putString("tone_name", name ?: "").remove("failed_at").apply()
-        if (old.startsWith("f:") && old != value && old != choice(c, 1 - target)) {
-            try { c.contentResolver.releasePersistableUriPermission(Uri.parse(old.substring(2)), Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) {}
-        }
+        if (old.startsWith("l:") && old != value) try { File(toneDir(c), old.substring(2)).delete() } catch (e: Exception) {}
     }
 
-    /** آخر مرة تعذّر فيها تشغيل النغمة المختارة (0 = لا) ويُمسح بعد قراءته */
     fun takeFailure(c: Context, target: Int): Boolean {
         val p = prefs(c, target)
         if (!p.contains("failed_at")) return false
@@ -73,50 +81,63 @@ object BellTone {
         return true
     }
 
+    private fun markFailed(c: Context, target: Int) { prefs(c, target).edit().putLong("failed_at", System.currentTimeMillis()).apply() }
+
     // ---------------------------------------------------------------- التشغيل
 
-    /** المدة المتوقعة (للمؤقتات في المستقبِل والشاشة) */
     fun durationMs(c: Context, target: Int, times: Int): Long {
         val v = choice(c, target)
         val n = if (times < 1) 1 else times
         return if (v.startsWith("b:")) pcm(v.substring(2), n).size * 1000L / RATE else CUSTOM_MS_PER_RING * n
     }
 
-    /** يشغّل نغمة الخدمة. لا يرمي استثناء أبداً. «s:» لا يشغّل شيئاً (النظام يتولاه من قناة الإشعار) */
+    /** رنّة حقيقية للخدمة. لا يرمي استثناء، ولا يحجز الخيط أكثر من تحضير ملف محلي صغير. «s:» لا يشغّل شيئاً */
     fun play(c: Context, target: Int, times: Int): Played {
         val v = choice(c, target)
         val n = if (times < 1) 1 else times
         if (v.startsWith("s:")) return Played(0L, false)
-        if (v.startsWith("b:")) return Played(playPcm(v.substring(2), n, target), false)
-        if (playUri(c, v, n, target)) return Played(CUSTOM_MS_PER_RING * n, false)
-        // تعذّرت نغمة الجوال: النغمة الأساسية بدلها، ويُسجَّل للتنبيه
-        prefs(c, target).edit().putLong("failed_at", System.currentTimeMillis()).apply()
-        return Played(playPcm("classic", n, target), true)
+        if (v.startsWith("b:")) return Played(playPcm(target, v.substring(2), n, target), false)
+        if (v.startsWith("l:")) {
+            if (playLocal(c, target, File(toneDir(c), v.substring(2)), n, target)) return Played(CUSTOM_MS_PER_RING * n, false)
+        } else if (v.startsWith("r:")) {
+            if (playRemote(c, target, v.substring(2), n, target)) return Played(CUSTOM_MS_PER_RING * n, false)
+        }
+        markFailed(c, target)
+        return Played(playPcm(target, "classic", n, target), true)
     }
 
-    /** معاينة اختيار لم يُحفظ بعد («جرّب» في نافذة الاختيار): مرة واحدة، تتوقف وحدها */
-    fun preview(c: Context, target: Int, value: String): Boolean {
-        stop()
-        if (value.startsWith("b:")) { playPcm(value.substring(2), 1, target); return true }
+    /** معاينة (خانة مستقلة): رنّة واحدة تتوقف وحدها. يعيد false إن تعذّرت نغمة الهاتف */
+    fun preview(c: Context, target: Int, value: String, times: Int = 1): Boolean {
+        stopPreview()
+        if (value.startsWith("b:")) { playPcm(PREVIEW, value.substring(2), times, target); return true }
         if (value.startsWith("s:")) {
             return try {
                 val r = RingtoneManager.getRingtone(c, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)) ?: return false
-                r.audioAttributes = attrs(target); r.play()
-                main.postDelayed({ try { r.stop() } catch (e: Exception) {} }, CUSTOM_MS_PER_RING)
+                r.audioAttributes = attrs(target)
+                ringtones[PREVIEW] = r
+                r.play()
+                val g = gen[PREVIEW]
+                h.postDelayed({ if (gen[PREVIEW] == g) stopSlot(PREVIEW) }, CUSTOM_MS_PER_RING)
                 true
             } catch (e: Exception) { false }
         }
-        return playUri(c, value, 1, target)
+        if (value.startsWith("l:")) return playLocal(c, PREVIEW, File(toneDir(c), value.substring(2)), times, target)
+        if (value.startsWith("r:")) return playRemote(c, PREVIEW, value.substring(2), times, target)
+        return false
     }
 
-    fun stop() {
-        main.removeCallbacksAndMessages(null)
-        try { player?.stop() } catch (e: Exception) {}
-        try { player?.release() } catch (e: Exception) {}
-        player = null
-        try { track?.stop() } catch (e: Exception) {}
-        try { track?.release() } catch (e: Exception) {}
-        track = null
+    fun stopPreview() = stopSlot(PREVIEW)
+
+    private fun stopSlot(s: Int) {
+        gen[s]++
+        val p = players[s]; players[s] = null
+        try { p?.stop() } catch (e: Exception) {}
+        try { p?.release() } catch (e: Exception) {}
+        val r = ringtones[s]; ringtones[s] = null
+        try { r?.stop() } catch (e: Exception) {}
+        val t = tracks[s]; tracks[s] = null
+        try { t?.stop() } catch (e: Exception) {}
+        try { t?.release() } catch (e: Exception) {}
     }
 
     private fun attrs(target: Int): AudioAttributes = AudioAttributes.Builder()
@@ -124,56 +145,66 @@ object BellTone {
         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
         .build()
 
-    private fun playUri(c: Context, v: String, times: Int, target: Int): Boolean {
-        val uri = try { Uri.parse(v.substring(2)) } catch (e: Exception) { return false }
-        // ملف من منتقي الملفات: لا يُشغَّل إلا بإذنه الدائم (إن زال الإذن فالنغمة الأساسية)
-        if (v.startsWith("f:")) {
-            var held = false
-            try { for (pp in c.contentResolver.persistedUriPermissions) if (pp.uri == uri && pp.isReadPermission) held = true } catch (e: Exception) {}
-            if (!held) return false
-        }
+    /** ملف في ذاكرة التطبيق (5 م.ب على الأكثر): تحضيره متزامن وسريع */
+    private fun playLocal(c: Context, slot: Int, f: File, times: Int, target: Int): Boolean {
+        if (!f.isFile || f.length() == 0L) return false
         return try {
             val mp = MediaPlayer()
             mp.setAudioAttributes(attrs(target))
-            mp.setDataSource(c.applicationContext, uri)
+            mp.setDataSource(f.absolutePath)
             mp.isLooping = true
             mp.prepare()
-            stop()
-            player = mp
-            mp.setOnErrorListener { p, _, _ -> try { p.release() } catch (e: Exception) {}; if (player === p) player = null; true }
-            mp.start()
-            val limit = CUSTOM_MS_PER_RING * times
-            // خفوت في آخر 600 مللي ثم إيقاف
-            main.postDelayed({ fade(mp, 600L) }, limit - 600L)
+            start(slot, mp, times)
             true
-        } catch (e: Exception) {
-            if (v.startsWith("r:")) playRingtone(c, uri, times, target) else false
-        }
+        } catch (e: Exception) { false }
     }
 
-    /** نغمات النظام التي لا يقرؤها التطبيق مباشرة (نغمة مخصّصة في ذاكرة الهاتف): عبر Ringtone الذي يشغّلها النظام عند الحاجة */
-    private fun playRingtone(c: Context, uri: Uri, times: Int, target: Int): Boolean = try {
-        val r = RingtoneManager.getRingtone(c, uri)
-        if (r == null) false else {
-            r.audioAttributes = attrs(target)
-            r.play()
-            main.postDelayed({ try { r.stop() } catch (e: Exception) {} }, CUSTOM_MS_PER_RING * times)
+    /**
+     * نغمة نظام لم تُنسخ: تحضير غير متزامن، فإن لم تجهز خلال ثانية (أو فشلت) تُشغَّل النغمة الأساسية بدلها ويُسجَّل الفشل.
+     * يعيد false فوراً فقط إن تعذّر بدء التحضير أصلاً.
+     */
+    private fun playRemote(c: Context, slot: Int, s: String, times: Int, target: Int): Boolean {
+        return try {
+            val uri = Uri.parse(s)
+            stopSlot(slot)
+            val g = gen[slot]
+            val mp = MediaPlayer()
+            players[slot] = mp
+            mp.setAudioAttributes(attrs(target))
+            mp.setDataSource(c.applicationContext, uri)
+            mp.isLooping = true
+            val failed = Runnable {
+                if (gen[slot] != g) return@Runnable
+                stopSlot(slot)
+                if (slot != PREVIEW) markFailed(c, target)
+                playPcm(slot, "classic", times, target)
+            }
+            mp.setOnPreparedListener { p -> if (gen[slot] == g) { h.removeCallbacks(failed); start(slot, p, times, false) } }
+            mp.setOnErrorListener { _, _, _ -> h.removeCallbacks(failed); h.post(failed); true }
+            h.postDelayed(failed, 1000L)
+            mp.prepareAsync()
             true
-        }
-    } catch (e: Exception) { false }
+        } catch (e: Exception) { stopSlot(slot); false }
+    }
 
-    private fun fade(mp: MediaPlayer, ms: Long) {
-        val steps = 6
-        for (i in 1..steps) main.postDelayed({
-            try {
-                val vol = 1f - i.toFloat() / steps
+    private fun start(slot: Int, mp: MediaPlayer, times: Int, fresh: Boolean = true) {
+        if (fresh) stopSlot(slot)
+        players[slot] = mp
+        val g = gen[slot]
+        mp.setOnErrorListener { p, _, _ -> if (players[slot] === p) stopSlot(slot); true }
+        mp.start()
+        val limit = CUSTOM_MS_PER_RING * times
+        // خفوت في آخر 600 مللي ثم إيقاف
+        for (i in 1..6) h.postDelayed({
+            if (gen[slot] == g) try {
+                val vol = 1f - i / 6f
                 mp.setVolume(vol, vol)
-                if (i == steps) { mp.stop(); mp.release(); if (player === mp) player = null }
+                if (i == 6) stopSlot(slot)
             } catch (e: Exception) {}
-        }, ms * i / steps)
+        }, limit - 600L + 100L * i)
     }
 
-    private fun playPcm(id: String, times: Int, target: Int): Long {
+    private fun playPcm(slot: Int, id: String, times: Int, target: Int): Long {
         return try {
             val data = pcm(id, times)
             val fmt = AudioFormat.Builder()
@@ -183,17 +214,24 @@ object BellTone {
                 .build()
             val t = AudioTrack(attrs(target), fmt, data.size * 2, AudioTrack.MODE_STATIC, AudioManager.AUDIO_SESSION_ID_GENERATE)
             t.write(data, 0, data.size)
-            t.play()
             val ms = data.size * 1000L / RATE
-            // كل مسار يُحرَّر بعد انتهائه (رنّات متتالية لا تقطع بعضها)
-            Thread { try { Thread.sleep(ms + 300) } catch (e: InterruptedException) {}; try { t.release() } catch (e: Exception) {} }.start()
+            if (slot == PREVIEW) {
+                stopSlot(PREVIEW)
+                tracks[PREVIEW] = t
+                val g = gen[PREVIEW]
+                t.play()
+                h.postDelayed({ if (gen[PREVIEW] == g) stopSlot(PREVIEW) }, ms + 300)
+            } else {
+                // الرنّات الحقيقية لا تقطع بعضها: كل مسار يُحرَّر بعد انتهائه
+                t.play()
+                h.postDelayed({ try { t.release() } catch (e: Exception) {} }, ms + 300)
+            }
             ms
         } catch (e: Exception) { 0L }
     }
 
     // ---------------------------------------------------------------- تركيب النغمات
 
-    /** نغمة واحدة: تردد، وبدء ومدة بالثواني، وسرعة الخفوت، ومركّبات [نسبة التردد، الشدة]... */
     private fun note(buf: FloatArray, start: Double, f: Double, dur: Double, decay: Double, parts: DoubleArray, attack: Double = 0.008) {
         val s0 = (start * RATE).toInt()
         val len = (dur * RATE).toInt()
@@ -213,7 +251,6 @@ object BellTone {
         }
     }
 
-    /** نمط النغمة الواحد [المدة بالثواني، الرسم] */
     private fun pattern(id: String): Pair<Double, (FloatArray, Double) -> Unit> = when (id) {
         // نغمتان هادئتان: «دِن – دون» (مي ثم دو)
         "chime" -> Pair(1.55, { b: FloatArray, o: Double ->
@@ -241,7 +278,6 @@ object BellTone {
         val key = "$id/$times"
         cache[key]?.let { return it }
         val pt = pattern(id)
-        // النغمة الأساسية تتكرر كل 0.7 ث كما كانت؛ والبقية بعد فاصل 0.3 ث
         val step = if (id == "classic" || BUILTIN.indexOf(id) < 0) 0.7 else pt.first + 0.3
         val total = step * (times - 1) + pt.first
         val buf = FloatArray((total * RATE).toInt() + 1)

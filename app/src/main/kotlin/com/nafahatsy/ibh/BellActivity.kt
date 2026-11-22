@@ -196,9 +196,11 @@ class BellActivity : Activity() {
         val change = btn(getString(R.string.tone_change), false)
         change.setOnClickListener { TonePick.show(this, BellTone.BELL) { renderTone() } }
         val test = btn(getString(R.string.tone_try), false)
+        // «جرّب» في خانة المعاينة: لا يقطع رنّة حقيقية للجرس
         test.setOnClickListener {
-            val pl = BellTone.play(this, BellTone.BELL, 2)
-            if (pl.fellBack) say(getString(R.string.tone_failed_bell))
+            if (!BellTone.preview(this, BellTone.BELL, BellTone.choice(this, BellTone.BELL), 2)) {
+                say(getString(R.string.tone_failed_bell)); BellTone.preview(this, BellTone.BELL, "b:classic", 2)
+            }
             checkVolume()
         }
         val tl1 = LinearLayout.LayoutParams(0, Cfg.dp(this, 48), 1f)

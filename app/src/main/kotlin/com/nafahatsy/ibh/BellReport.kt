@@ -68,6 +68,13 @@ object BellReport {
                 val o = JSONObject()
                 o.put("date", date); o.put("at", at); o.put("ok", ok); o.put("q", now); o.put("k", k)
                 if (fallback) o.put("fb", true)
+                // حالة بطارية هاتف الجرس لحظة الرنّة (للويب لاحقاً: تنبيه «هاتف الجرس غير موصول بالشاحن»)
+                try {
+                    val bm = c.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+                    val pct = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                    if (pct in 0..100) o.put("bat", pct)
+                    o.put("chg", bm.isCharging)
+                } catch (e: Exception) {}
                 out.put(o)
                 while (out.length() > MAX_ITEMS) out.remove(0)
                 save(c, out)
@@ -145,6 +152,8 @@ object BellReport {
         val body = JSONObject()
         body.put("date", o.optString("date")); body.put("at", o.optString("at")); body.put("ok", o.optBoolean("ok"))
         if (o.optBoolean("fb")) body.put("tone_fallback", true)
+        if (o.has("bat")) body.put("battery", o.optInt("bat"))
+        if (o.has("chg")) body.put("charging", o.optBoolean("chg"))
         val bytes = body.toString().toByteArray(Charsets.UTF_8)
         val h = URL(Cfg.BELL_RING).openConnection() as HttpURLConnection
         h.connectTimeout = 10000; h.readTimeout = 10000

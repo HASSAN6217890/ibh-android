@@ -360,6 +360,8 @@ object RingSched {
             if (Build.VERSION.SDK_INT >= 26) {
                 val ch = nm.getNotificationChannel(CH_APP)
                 if (ch != null && ch.importance < NotificationManager.IMPORTANCE_DEFAULT) return false
+                // المستخدم أضاف صوتاً لهذه القناة من إعدادات الهاتف: يكفي صوت النظام، فلا يُشغَّل صوتان
+                if (ch != null && ch.sound != null) return false
             }
             true
         } catch (e: Exception) { true }

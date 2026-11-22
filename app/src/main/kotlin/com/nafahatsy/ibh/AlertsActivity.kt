@@ -197,7 +197,7 @@ class AlertsActivity : Activity() {
         if (BellTone.takeFailure(this, BellTone.ALERT)) say(getString(R.string.tone_failed_alert))
     }
 
-    override fun onStop() { super.onStop(); BellTone.stop() }
+    override fun onStop() { super.onStop(); BellTone.stopPreview() }
 
     @Deprecated("Activity API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

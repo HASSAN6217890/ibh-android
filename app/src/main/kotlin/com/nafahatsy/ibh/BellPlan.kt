@@ -235,6 +235,7 @@ class BellAlarmReceiver : BroadcastReceiver() {
             w.acquire(20_000L); w
         } catch (e: Exception) { null }
         var delay = 300L
+        var lastAt = 0L
         val gap = try { BellTone.durationMs(c, BellTone.BELL, 2) + 400L } catch (e: Exception) { 2500L }
         try {
             val f = BellPlan.feed(c)
@@ -247,7 +248,9 @@ class BellAlarmReceiver : BroadcastReceiver() {
                 BellPlan.markRung(c, k)
                 val hm = BellPlan.hm(r.first)
                 if (n.second - r.first <= 2.0) {
-                    val at = i * gap
+                    // البث لا يُمسك أكثر من نحو 9 ثوانٍ: الرنّات المتزامنة تبدأ كلها قبل 8.5 ثانية
+                    val at = if (i * gap > 8500L) 8500L else i * gap
+                    lastAt = at
                     val day = n.first
                     Handler(Looper.getMainLooper()).postDelayed({
                         val pl = BellTone.play(c, BellTone.BELL, 2)
@@ -265,9 +268,9 @@ class BellAlarmReceiver : BroadcastReceiver() {
             // تقارير سابقة لم تُرسل (انقطع الإنترنت): محاولة جديدة مع كل منبّه، في خيط خلفي
             BellReport.flush(c)
         } catch (e: Exception) {}
-        Handler(Looper.getMainLooper()).postDelayed({
-            try { wl?.release() } catch (e: Exception) {}
-            pr.finish()
-        }, delay)
+        // البث يُنهى عند بدء آخر رنّة (حدّ goAsync نحو 10 ثوانٍ)، وقفل المعالج يبقى حتى ينتهي الصوت
+        val main = Handler(Looper.getMainLooper())
+        main.postDelayed({ try { pr.finish() } catch (e: Exception) {} }, lastAt + 50L)
+        main.postDelayed({ try { wl?.release() } catch (e: Exception) {} }, delay)
     }
 }
