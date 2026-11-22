@@ -26,6 +26,9 @@ class AlertsActivity : Activity() {
     private lateinit var nextT: TextView
     private lateinit var permBox: LinearLayout
     private lateinit var opts: LinearLayout
+    private lateinit var toneBox: LinearLayout
+    private lateinit var toneT: TextView
+    private lateinit var noticeT: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -107,8 +110,25 @@ class AlertsActivity : Activity() {
         g1.addView(radio(getString(R.string.al_sound), 1))
         g1.addView(radio(getString(R.string.al_vibe), 2))
         g1.check(if (RingSched.vibrateOnly(this)) 2 else 1)
-        g1.setOnCheckedChangeListener { _, id -> RingSched.setVibrateOnly(this, id == 2) }
+        g1.setOnCheckedChangeListener { _, id -> RingSched.setVibrateOnly(this, id == 2); refresh() }
         add(opts, g1, 2)
+
+        // النغمة (منفصلة عن نغمة الجرس): اسمها، و«غيّر النغمة» و«جرّب»
+        toneBox = LinearLayout(this)
+        toneBox.orientation = LinearLayout.VERTICAL
+        toneT = tv(15f, Cfg.INK)
+        add(toneBox, toneT, 6)
+        val trow = LinearLayout(this)
+        trow.orientation = LinearLayout.HORIZONTAL
+        val change = pill(getString(R.string.tone_change))
+        change.setOnClickListener { TonePick.show(this, BellTone.ALERT) { refresh() } }
+        val test = pill(getString(R.string.tone_try))
+        test.setOnClickListener { if (!BellTone.preview(this, BellTone.ALERT, BellTone.choice(this, BellTone.ALERT))) say(getString(R.string.tone_failed_alert)) }
+        val l1 = LinearLayout.LayoutParams(0, Cfg.dp(this, 48), 1f)
+        val l2 = LinearLayout.LayoutParams(0, Cfg.dp(this, 48), 1f); l2.marginStart = Cfg.dp(this, 10)
+        trow.addView(change, l1); trow.addView(test, l2)
+        add(toneBox, trow, 6)
+        add(opts, toneBox)
 
         val h2 = tv(15f, Cfg.INK, true); h2.text = getString(R.string.al_end); add(opts, h2, 14)
         val g2 = RadioGroup(this)
@@ -117,6 +137,13 @@ class AlertsActivity : Activity() {
         g2.check(if (RingSched.earlyEnd(this)) 3 else 4)
         g2.setOnCheckedChangeListener { _, id -> RingSched.setEarlyEnd(this, id == 3); refresh() }
         add(opts, g2, 2)
+
+        noticeT = tv(14f, Cfg.INK, true)
+        noticeT.background = UiKit.pill(0xFFF6EBDD.toInt(), Cfg.dp(this, 12))
+        noticeT.setPadding(Cfg.dp(this, 14), Cfg.dp(this, 10), Cfg.dp(this, 14), Cfg.dp(this, 10))
+        noticeT.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        noticeT.visibility = View.GONE
+        add(col, noticeT, 14)
 
         nextT = tv(15f, Cfg.GREEN_800, true)
         add(col, nextT, 18)
@@ -150,8 +177,37 @@ class AlertsActivity : Activity() {
         }
     }
 
+    private fun pill(text: String): android.widget.Button {
+        val b = android.widget.Button(this)
+        b.text = text
+        b.isAllCaps = false
+        b.textSize = 15f
+        b.setTextColor(Cfg.GREEN_800)
+        b.background = UiKit.outline(Cfg.GREEN_800, Cfg.dp(this, 24), Cfg.dp(this, 1), Cfg.CREAM)
+        return b
+    }
+
+    private fun say(s: String) {
+        noticeT.text = s
+        noticeT.visibility = View.VISIBLE
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (BellTone.takeFailure(this, BellTone.ALERT)) say(getString(R.string.tone_failed_alert))
+    }
+
+    override fun onStop() { super.onStop(); BellTone.stop() }
+
+    @Deprecated("Activity API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!TonePick.handle(this, BellTone.ALERT, requestCode, resultCode, data) { refresh() }) super.onActivityResult(requestCode, resultCode, data)
+    }
+
     private fun refresh() {
         val on = RingSched.enabled(this)
+        toneT.text = getString(R.string.tone_current) + " " + BellTone.choiceName(this, BellTone.ALERT)
+        toneBox.visibility = if (RingSched.vibrateOnly(this)) View.GONE else View.VISIBLE
         opts.alpha = if (on) 1f else 0.45f
         for (i in 0 until opts.childCount) setEnabledDeep(opts.getChildAt(i), on)
         val loggedIn = SecureStore(this).get(SecureStore.SESSION) != null

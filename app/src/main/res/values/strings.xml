@@ -29,7 +29,6 @@
     <string name="bell_long">وضع هاتف الجرس</string>
     <string name="bell_start">شغّل الجرس على هذا الهاتف</string>
     <string name="bell_stop">أوقف الجرس</string>
-    <string name="bell_test">جرّب الصوت</string>
     <string name="bell_hint">أبقِ الهاتف موصولاً بالشاحن ومكبّر الصوت. تبقى الشاشة مضاءة ما دام الجرس يعمل، والجرس الذي فات وقته بأكثر من دقيقتين لا يرنّ. يُحدَّث الجدول من المنصة كل 5 دقائق، وإن انقطع الإنترنت يرنّ من آخر جدول محفوظ.</string>
     <string name="bell_today">جرس اليوم</string>
     <string name="bell_next">الرنّة التالية:</string>
@@ -135,6 +134,28 @@
         <item>السبت</item>
     </string-array>
     <string name="al_channel">تنبيهات الدوام</string>
+    <string name="al_channel_app">تنبيهات الدوام (بنغمة من التطبيق)</string>
     <string name="al_channel_vibe">تنبيهات الدوام (اهتزاز فقط)</string>
     <string name="al_channel_desc">بداية الحصص ونهايتها والاستراحة من جدولك في المعهد</string>
+
+    <!-- النغمات (1.3.0) -->
+    <string name="tone_classic">النغمة الأساسية</string>
+    <string name="tone_chime">نغمتان هادئتان</string>
+    <string name="tone_marimba">ثلاث نغمات خشبية</string>
+    <string name="tone_bowl">رنين عميق</string>
+    <string name="tone_melody">لحن الأجراس</string>
+    <string name="tone_system">نغمة إشعارات الهاتف</string>
+    <string name="tone_phone">نغمة من الجوال</string>
+    <string name="tone_pick_system">من نغمات الجوال…</string>
+    <string name="tone_pick_file">ملف صوتي من الجوال…</string>
+    <string name="tone_title_bell">نغمة الجرس</string>
+    <string name="tone_title_alert">نغمة تنبيهات الدوام</string>
+    <string name="tone_current">النغمة:</string>
+    <string name="tone_change">غيّر النغمة</string>
+    <string name="tone_try">جرّب</string>
+    <string name="tone_save">احفظ</string>
+    <string name="tone_cancel">إلغاء</string>
+    <string name="tone_file_denied">لم يُسمح للتطبيق بالاحتفاظ بهذا الملف. اختر ملفاً آخر.</string>
+    <string name="tone_failed_bell">تعذّر تشغيل النغمة المختارة (ربما حُذف الملف)، فرنّ الجرس بالنغمة الأساسية. اختر نغمة أخرى من «غيّر النغمة».</string>
+    <string name="tone_failed_alert">تعذّر تشغيل النغمة المختارة (ربما حُذف الملف)، فاستُعملت النغمة الأساسية. اختر نغمة أخرى من «غيّر النغمة».</string>
 </resources>

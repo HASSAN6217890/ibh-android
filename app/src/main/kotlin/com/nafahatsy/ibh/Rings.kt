@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 object RingSched {
     const val CH_SOUND = "duty_sound"
     const val CH_VIBE = "duty_vibe"
+    /** قناة صامتة تهتز، يشغّل التطبيق معها النغمة المختارة بنفسه (1.3.0) */
+    const val CH_APP = "duty_app"
     private const val RC_NEXT = 10
     private const val RC_DAILY = 11
     private const val RC_OPEN = 12
@@ -276,9 +278,9 @@ object RingSched {
         scheduleNext(c)
     }
 
-    /** عند وقت التنبيه: إشعار لكل ما حلّ (ما فات بأكثر من 3 دقائق يُتجاوز بصمت)، ثم منبّه التالي */
-    fun fire(c: Context) {
-        if (!enabled(c)) return
+    /** عند وقت التنبيه: إشعار لما حلّ (ما فات بأكثر من 10 دقائق يُتجاوز بصمت)، ثم منبّه التالي. يعيد مدة النغمة (مللي) */
+    fun fire(c: Context): Long {
+        if (!enabled(c)) return 0L
         val now = System.currentTimeMillis()
         val p = prefs(c)
         var last = p.getLong("last", 0L)
@@ -295,10 +297,11 @@ object RingSched {
         }
         p.edit().putLong("last", last).apply()
         markFired(c, keys)
-        if (shown != null) notify(c, shown, shownAt)
+        val ms = if (shown != null) notify(c, shown, shownAt) else 0L
         scheduleNext(c)
         // القائمة توشك أن تنفد (لا قادم): جلب جديد
         if (nextItem(c) == null) fetch(c, false, null)
+        return ms
     }
 
     // ---------------------------------------------------------------- الإشعار
@@ -313,6 +316,14 @@ object RingSched {
             ch.vibrationPattern = longArrayOf(0, 250, 150, 250)
             ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
                 AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+            nm.createNotificationChannel(ch)
+        }
+        if (nm.getNotificationChannel(CH_APP) == null) {
+            val ch = NotificationChannel(CH_APP, c.getString(R.string.al_channel_app), NotificationManager.IMPORTANCE_HIGH)
+            ch.description = c.getString(R.string.al_channel_desc)
+            ch.enableVibration(true)
+            ch.vibrationPattern = longArrayOf(0, 250, 150, 250)
+            ch.setSound(null, null)
             nm.createNotificationChannel(ch)
         }
         if (nm.getNotificationChannel(CH_VIBE) == null) {
@@ -333,11 +344,34 @@ object RingSched {
         return h12.toString() + ":" + String.format(Locale.ROOT, "%02d", m % 60) + (if (h < 12) " ص" else " م")
     }
 
+    /**
+     * نغمة التنبيه: «نغمة إشعارات الهاتف» يشغّلها النظام من القناة duty_sound كما في 1.2.0. وأي نغمة أخرى (مدمجة أو من
+     * الجوال) يشغّلها التطبيق بنفسه مع إشعار على القناة الصامتة duty_app، بدل قناة جديدة لكل نغمة: صوت القناة لا يتغيّر بعد
+     * إنشائها، والقنوات المحذوفة تبقى معدودة في إعدادات الهاتف وتضيع معها تخصيصات المستخدم، والنظام لا يقرأ ملفاً اختير
+     * بمنتقي الملفات إلا بمنحه إذناً خاصاً — فتغيير النغمة هنا فوري ومضمون على كل الإصدارات.
+     * والتطبيق يحترم الصامت و«عدم الإزعاج» بنفسه: لا يشغّل إلا والرنين عادي ولا مقاطعة مفعّلة، وعلى مسار الإشعارات.
+     */
+    private fun selfSoundAllowed(c: Context): Boolean {
+        return try {
+            val am = c.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            if (am.ringerMode != android.media.AudioManager.RINGER_MODE_NORMAL) return false
+            val nm = c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (nm.currentInterruptionFilter > NotificationManager.INTERRUPTION_FILTER_ALL) return false
+            if (Build.VERSION.SDK_INT >= 26) {
+                val ch = nm.getNotificationChannel(CH_APP)
+                if (ch != null && ch.importance < NotificationManager.IMPORTANCE_DEFAULT) return false
+            }
+            true
+        } catch (e: Exception) { true }
+    }
+
     @Suppress("DEPRECATION")
-    private fun notify(c: Context, it: JSONObject, at: Long) {
-        if (!notificationsAllowed(c)) return
+    private fun notify(c: Context, it: JSONObject, at: Long): Long {
+        if (!notificationsAllowed(c)) return 0L
         ensureChannels(c)
         val vibe = vibrateOnly(c)
+        val sysTone = BellTone.choice(c, BellTone.ALERT).startsWith("s:")
+        val chId = if (vibe) CH_VIBE else if (sysTone) CH_SOUND else CH_APP
         val unit = it.optString("unit").let { u -> if (u == "null") "" else u.trim() }
         val time = hm12(it.optString("at"))
         val body = if (unit.isNotEmpty()) "$unit · $time" else time
@@ -346,7 +380,7 @@ object RingSched {
         open.putExtra(MainActivity.EXTRA_ROUTE, "#day")
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val tap = PendingIntent.getActivity(c, RC_OPEN, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, if (vibe) CH_VIBE else CH_SOUND) else Notification.Builder(c)
+        val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, chId) else Notification.Builder(c)
         b.setSmallIcon(R.drawable.ic_stat_ibh)
             .setContentTitle(it.optString("text").trim())
             .setContentText(body)
@@ -358,16 +392,18 @@ object RingSched {
             .setCategory(Notification.CATEGORY_REMINDER)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
         // على شاشة القفل: «تنبيه دوام» والوقت فقط، بلا اسم الفرع ولا نص الحصة
-        val pub = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, if (vibe) CH_VIBE else CH_SOUND) else Notification.Builder(c)
+        val pub = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, chId) else Notification.Builder(c)
         pub.setSmallIcon(R.drawable.ic_stat_ibh).setContentTitle(c.getString(R.string.al_public_title)).setContentText(time).setColor(Cfg.GREEN_800)
         b.setPublicVersion(pub.build())
         if (Build.VERSION.SDK_INT >= 26) b.setTimeoutAfter(30 * 60_000L)
         else {
             b.setPriority(Notification.PRIORITY_HIGH)
             b.setVibrate(longArrayOf(0, 250, 150, 250))
-            if (!vibe) b.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+            if (!vibe && sysTone) b.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
         }
-        try { (c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, b.build()) } catch (e: Exception) {}
+        try { (c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, b.build()) } catch (e: Exception) { return 0L }
+        if (vibe || sysTone || !selfSoundAllowed(c)) return 0L
+        return BellTone.play(c, BellTone.ALERT, 1).ms
     }
 }
 
@@ -375,7 +411,21 @@ object RingSched {
 class RingAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, intent: Intent) {
         when (intent.action) {
-            RingSched.ACTION_FIRE -> try { RingSched.fire(c) } catch (e: Exception) {}
+            RingSched.ACTION_FIRE -> {
+                // النغمة يشغّلها التطبيق: تبقى العملية حية حتى تنتهي (والشاشة مقفلة) بقفل معالج قصير
+                val pr = goAsync()
+                val wl = try {
+                    val w = (c.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "ibh:duty-alert")
+                    w.acquire(12_000L); w
+                } catch (e: Exception) { null }
+                var ms = 0L
+                try { ms = RingSched.fire(c) } catch (e: Exception) {}
+                val wait = if (ms > 8000L) 8500L else ms + 500L
+                Handler(Looper.getMainLooper()).postDelayed({
+                    try { wl?.release() } catch (e: Exception) {}
+                    try { pr.finish() } catch (e: Exception) {}
+                }, wait)
+            }
             RingSched.ACTION_DAILY -> RingSched.fetch(c, false, null, goAsync())
         }
     }

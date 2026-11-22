@@ -49,7 +49,8 @@ object BellReport {
     }
 
     /** يضيف تقرير موعد إلى الطابور ثم يحاول الإرسال في الخلفية. آمن من الخيط الرئيسي (لا شبكة هنا) */
-    fun queue(ctx: Context, date: String, at: String, ok: Boolean) {
+    /** fallback: رنّ بالنغمة الأساسية لأن النغمة المختارة تعذّر تشغيلها (حقل اختياري في التقرير) */
+    fun queue(ctx: Context, date: String, at: String, ok: Boolean, fallback: Boolean = false) {
         val c = ctx.applicationContext
         try {
             val tok = token(c) ?: return
@@ -66,6 +67,7 @@ object BellReport {
                 }
                 val o = JSONObject()
                 o.put("date", date); o.put("at", at); o.put("ok", ok); o.put("q", now); o.put("k", k)
+                if (fallback) o.put("fb", true)
                 out.put(o)
                 while (out.length() > MAX_ITEMS) out.remove(0)
                 save(c, out)
@@ -142,6 +144,7 @@ object BellReport {
     private fun post(c: Context, tok: String, o: JSONObject): Int = try {
         val body = JSONObject()
         body.put("date", o.optString("date")); body.put("at", o.optString("at")); body.put("ok", o.optBoolean("ok"))
+        if (o.optBoolean("fb")) body.put("tone_fallback", true)
         val bytes = body.toString().toByteArray(Charsets.UTF_8)
         val h = URL(Cfg.BELL_RING).openConnection() as HttpURLConnection
         h.connectTimeout = 10000; h.readTimeout = 10000

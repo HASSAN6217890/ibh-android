@@ -232,9 +232,10 @@ class BellAlarmReceiver : BroadcastReceiver() {
         val pr = goAsync()
         val wl = try {
             val w = (c.getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ibh:bell-alarm")
-            w.acquire(10_000L); w
+            w.acquire(20_000L); w
         } catch (e: Exception) { null }
         var delay = 300L
+        val gap = try { BellTone.durationMs(c, BellTone.BELL, 2) + 400L } catch (e: Exception) { 2500L }
         try {
             val f = BellPlan.feed(c)
             val n = BellPlan.now(f, BellPlan.offset(c))
@@ -246,10 +247,13 @@ class BellAlarmReceiver : BroadcastReceiver() {
                 BellPlan.markRung(c, k)
                 val hm = BellPlan.hm(r.first)
                 if (n.second - r.first <= 2.0) {
-                    val at = i * 2500L
+                    val at = i * gap
                     val day = n.first
-                    Handler(Looper.getMainLooper()).postDelayed({ BellTone.play(2); BellReport.queue(c, day, hm, true) }, at)
-                    delay = at + 2500L
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        val pl = BellTone.play(c, BellTone.BELL, 2)
+                        BellReport.queue(c, day, hm, true, pl.fellBack)
+                    }, at)
+                    delay = at + gap
                     i++
                 } else if (BellPlan.afterOn(c, n.first, r.first) && BellPlan.afterChecked(c, n.first, r.first)) {
                     BellPlan.markMissed(c, k)

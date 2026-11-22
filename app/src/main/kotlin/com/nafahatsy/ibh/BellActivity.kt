@@ -3,6 +3,7 @@ package com.nafahatsy.ibh
 import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.media.AudioManager
@@ -50,6 +51,7 @@ class BellActivity : Activity() {
     private lateinit var nextBig: TextView
     private lateinit var listBox: LinearLayout
     private lateinit var msgT: TextView
+    private lateinit var toneT: TextView
     private var listSig = ""
     private val hideMsg = Runnable { msgT.visibility = View.GONE }
     private var heldStopAt = 0L
@@ -186,9 +188,23 @@ class BellActivity : Activity() {
                 .show()
             true
         }
-        val test = btn(getString(R.string.bell_test), false)
-        test.setOnClickListener { BellTone.play(2); checkVolume() }
-        add(col, test, Cfg.dp(this, 48), 10)
+        // النغمة: اسمها، و«غيّر النغمة» و«جرّب» (رنّة كاملة كما سترنّ، تتوقف وحدها)
+        toneT = tv(15f, Cfg.INK)
+        add(col, toneT, top = 14)
+        val trow = LinearLayout(this)
+        trow.orientation = LinearLayout.HORIZONTAL
+        val change = btn(getString(R.string.tone_change), false)
+        change.setOnClickListener { TonePick.show(this, BellTone.BELL) { renderTone() } }
+        val test = btn(getString(R.string.tone_try), false)
+        test.setOnClickListener {
+            val pl = BellTone.play(this, BellTone.BELL, 2)
+            if (pl.fellBack) say(getString(R.string.tone_failed_bell))
+            checkVolume()
+        }
+        val tl1 = LinearLayout.LayoutParams(0, Cfg.dp(this, 48), 1f)
+        val tl2 = LinearLayout.LayoutParams(0, Cfg.dp(this, 48), 1f); tl2.marginStart = Cfg.dp(this, 10)
+        trow.addView(change, tl1); trow.addView(test, tl2)
+        add(col, trow, top = 6)
 
         val hint = tv(14f, Cfg.MUTED)
         hint.text = getString(R.string.bell_hint)
@@ -252,6 +268,22 @@ class BellActivity : Activity() {
         }
     }
 
+    private fun renderTone() {
+        toneT.text = getString(R.string.tone_current) + " " + BellTone.choiceName(this, BellTone.BELL)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        renderTone()
+        // تعذّر تشغيل النغمة المختارة في رنّة سابقة (من المنبّه والشاشة مغلقة): تنبيه صغير مرة واحدة
+        if (BellTone.takeFailure(this, BellTone.BELL)) say(getString(R.string.tone_failed_bell))
+    }
+
+    @Deprecated("Activity API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!TonePick.handle(this, BellTone.BELL, requestCode, resultCode, data) { renderTone() }) super.onActivityResult(requestCode, resultCode, data)
+    }
+
     private fun refreshTokenUi() {
         val has = token() != null
         tokenBox.visibility = if (has) View.GONE else View.VISIBLE
@@ -287,7 +319,7 @@ class BellActivity : Activity() {
         acquireCpu()
         val n = now()
         lastDay = n.first; lastMin = n.second
-        BellTone.play(1)
+        BellTone.play(this, BellTone.BELL, 1)
         checkVolume()
         ui.removeCallbacks(tick)
         ui.post(tick)
@@ -358,9 +390,16 @@ class BellActivity : Activity() {
         }
         lastMin = n.second
         val day = n.first
+        // الرنّات المتزامنة تتوالى بقدر مدة النغمة المختارة، فلا تقطع إحداها الأخرى
+        val gap = BellTone.durationMs(this, BellTone.BELL, 2) + 400L
         for (i in due.indices) {
             val r = due[i]
-            ui.postDelayed({ BellTone.play(2); addLog(r.second); BellReport.queue(this, day, BellPlan.hm(r.first), true) }, i * 2500L)
+            ui.postDelayed({
+                val pl = BellTone.play(this, BellTone.BELL, 2)
+                addLog(r.second)
+                if (pl.fellBack) say(getString(R.string.tone_failed_bell))
+                BellReport.queue(this, day, BellPlan.hm(r.first), true, pl.fellBack)
+            }, i * gap)
         }
         if (due.isNotEmpty()) BellPlan.schedule(this)
         // تقارير لم تُرسل بعد: يُفحص هنا كثيراً، ولا محاولة إلا إن حلّ موعدها (BellReport.flush)
