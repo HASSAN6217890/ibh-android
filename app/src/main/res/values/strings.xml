@@ -155,8 +155,9 @@
     <string name="tone_try">جرّب</string>
     <string name="tone_save">احفظ</string>
     <string name="tone_cancel">إلغاء</string>
-    <string name="tone_svc_channel">تشغيل الجرس</string>
+    <string name="tone_svc_channel">تشغيل النغمات</string>
     <string name="tone_svc_ringing">يرنّ الجرس الآن</string>
+    <string name="tone_svc_alert">تنبيه الدوام…</string>
     <string name="tone_saving">جارٍ حفظ النغمة…</string>
     <string name="tone_too_large">الملف أكبر من 5 م.ب. اختر مقطعاً أقصر.</string>
     <string name="tone_unreadable">تعذّرت قراءة هذا الملف. اختر ملفاً صوتياً محفوظاً على الهاتف.</string>

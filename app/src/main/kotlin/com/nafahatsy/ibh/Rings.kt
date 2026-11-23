@@ -405,15 +405,13 @@ object RingSched {
         }
         val self = !vibe && !sysTone && selfSoundAllowed(c)
         if (self) {
-            // النغمة من خدمة أمامية قصيرة (ToneService): العملية لا تُجمَّد ولا يُكتم صوتها في الخلفية، والإشعار نفسه إشعارها
-            if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
-            val n = b.build()
+            // الإشعار عادي (يبقى قابلاً للضغط والإزالة)، والنغمة من خدمة أمامية قصيرة (ToneService) لها إشعارها الهادئ المستقل،
+            // فلا تُجمَّد العملية ولا يُكتم صوتها في الخلفية
+            try { (c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, b.build()) } catch (e: Exception) { return 0L }
             val i = Intent()
             i.putExtra(ToneService.EXTRA_KIND, ToneService.KIND_ALERT)
-            i.putExtra(ToneService.EXTRA_NOTIF, n)
             if (ToneService.start(c, i)) return 0L
-            // رفض النظام بدء الخدمة: كما في 1.3.0 (إشعار ثم النغمة من المستقبِل)
-            try { (c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, n) } catch (e: Exception) { return 0L }
+            // رفض النظام بدء الخدمة: النغمة من المستقبِل كما في 1.3.0
             return BellTone.play(c, BellTone.ALERT, 1).ms
         }
         try { (c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, b.build()) } catch (e: Exception) {}
