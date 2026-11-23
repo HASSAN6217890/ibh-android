@@ -44,7 +44,7 @@ object RingSched {
     private const val RC_DAILY = 11
     private const val RC_OPEN = 12
     private const val RC_SHOW = 13
-    private const val NOTIF_ID = 7001
+    const val NOTIF_ID = 7001
     const val ACTION_FIRE = "com.nafahatsy.ibh.RING_FIRE"
     const val ACTION_DAILY = "com.nafahatsy.ibh.RING_DAILY"
     /** موعد فات بأكثر من 10 دقائق (الهاتف كان مطفأً) لا يُنبَّه به متأخراً؛ وما دونها يظهر متأخراً ولا يضيع */
@@ -403,9 +403,21 @@ object RingSched {
             b.setVibrate(longArrayOf(0, 250, 150, 250))
             if (!vibe && sysTone) b.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
         }
-        try { (c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, b.build()) } catch (e: Exception) { return 0L }
-        if (vibe || sysTone || !selfSoundAllowed(c)) return 0L
-        return BellTone.play(c, BellTone.ALERT, 1).ms
+        val self = !vibe && !sysTone && selfSoundAllowed(c)
+        if (self) {
+            // النغمة من خدمة أمامية قصيرة (ToneService): العملية لا تُجمَّد ولا يُكتم صوتها في الخلفية، والإشعار نفسه إشعارها
+            if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+            val n = b.build()
+            val i = Intent()
+            i.putExtra(ToneService.EXTRA_KIND, ToneService.KIND_ALERT)
+            i.putExtra(ToneService.EXTRA_NOTIF, n)
+            if (ToneService.start(c, i)) return 0L
+            // رفض النظام بدء الخدمة: كما في 1.3.0 (إشعار ثم النغمة من المستقبِل)
+            try { (c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, n) } catch (e: Exception) { return 0L }
+            return BellTone.play(c, BellTone.ALERT, 1).ms
+        }
+        try { (c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, b.build()) } catch (e: Exception) {}
+        return 0L
     }
 }
 

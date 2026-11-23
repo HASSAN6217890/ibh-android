@@ -14,6 +14,8 @@
     <!-- تنبيهات الدوام (1.2.0): الإشعار نفسه (أندرويد 13+ يُطلب بشرح مرة واحدة)، وإعادة المنبّهات بعد إعادة تشغيل الهاتف -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 1.3.1: خدمة أمامية قصيرة (shortService، بلا إذن نوع خاص) تشغّل نغمة التنبيه والجرس والتطبيق في الخلفية -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
@@ -81,6 +83,12 @@
             android:exported="false"
             android:label="@string/al_title"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation" />
+
+        <!-- تشغيل النغمة من المنبّه (ToneService.kt): غير مُصدَّرة، تتوقف بعد النغمة وبمهلة قصوى 60 ثانية -->
+        <service
+            android:name=".ToneService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
 
         <!-- منبّه التنبيه التالي والجلب اليومي لتنبيهات الدوام: غير مُصدَّر، ورموز طلبه غير رموز هاتف الجرس -->
         <receiver android:name=".RingAlarmReceiver" android:exported="false" />

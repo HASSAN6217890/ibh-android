@@ -241,26 +241,38 @@ class BellAlarmReceiver : BroadcastReceiver() {
             val f = BellPlan.feed(c)
             val n = BellPlan.now(f, BellPlan.offset(c))
             var i = 0
+            val due = ArrayList<String>()
             for (r in BellPlan.rings(BellPlan.day(f, n.first))) {
                 if (r.first > n.second) continue
                 val k = BellPlan.key(n.first, r.first)
                 if (BellPlan.wasRung(c, k)) continue
                 BellPlan.markRung(c, k)
                 val hm = BellPlan.hm(r.first)
-                if (n.second - r.first <= 2.0) {
-                    // البث لا يُمسك أكثر من نحو 9 ثوانٍ: الرنّات المتزامنة تبدأ كلها قبل 8.5 ثانية
-                    val at = if (i * gap > 8500L) 8500L else i * gap
-                    lastAt = at
-                    val day = n.first
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        val pl = BellTone.play(c, BellTone.BELL, 2)
-                        BellReport.queue(c, day, hm, true, pl.fellBack)
-                    }, at)
-                    delay = at + gap
-                    i++
-                } else if (BellPlan.afterOn(c, n.first, r.first) && BellPlan.afterChecked(c, n.first, r.first)) {
+                if (n.second - r.first <= 2.0) due.add(hm) else if (BellPlan.afterOn(c, n.first, r.first) && BellPlan.afterChecked(c, n.first, r.first)) {
                     BellPlan.markMissed(c, k)
                     BellReport.queue(c, n.first, hm, false)
+                }
+            }
+            // الرنين من خدمة أمامية قصيرة (ToneService) فلا تُجمَّد العملية ولا يُكتم صوتها والتطبيق في الخلفية؛
+            // وإن رفض النظام بدءها فمن المستقبِل نفسه كما في 1.3.0
+            if (due.isNotEmpty()) {
+                val si = Intent()
+                si.putExtra(ToneService.EXTRA_KIND, ToneService.KIND_BELL)
+                si.putExtra(ToneService.EXTRA_DATE, n.first)
+                si.putExtra(ToneService.EXTRA_RINGS, due.toTypedArray())
+                if (!ToneService.start(c, si)) {
+                    val day = n.first
+                    for (hm in due) {
+                        // البث لا يُمسك أكثر من نحو 9 ثوانٍ: الرنّات المتزامنة تبدأ كلها قبل 8.5 ثانية
+                        val at = if (i * gap > 8500L) 8500L else i * gap
+                        lastAt = at
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            val pl = BellTone.play(c, BellTone.BELL, 2)
+                            BellReport.queue(c, day, hm, true, pl.fellBack)
+                        }, at)
+                        delay = at + gap
+                        i++
+                    }
                 }
             }
             BellPlan.setChecked(c, n.first, n.second)
